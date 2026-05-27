@@ -1,6 +1,5 @@
-import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
-import '../../../../core/error/failure.dart';
+import '../../../../core/error/exceptions.dart';
 import '../models/dto/auth_dto.dart';
 
 /// Abstrakcyjne źródło danych zdalnych dla autoryzacji

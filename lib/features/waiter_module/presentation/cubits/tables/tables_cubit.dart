@@ -12,7 +12,7 @@ class TablesCubit extends Cubit<TablesState> {
   TablesCubit({
     required this.getTablesUseCase,
     required this.changeTableStatusUseCase,
-  }) : super(const TablesLoading());
+  }) : super(const TablesInitial());
 
   /// Ładuje listę stolików z repozytorium
   Future<void> loadTables({String? filter}) async {
@@ -21,7 +21,7 @@ class TablesCubit extends Cubit<TablesState> {
     final result = await getTablesUseCase(filter: filter);
 
     result.fold(
-      (failure) => emit(TablesError(failure)),
+      (failure) => emit(TablesError(failure: failure)),
       (tables) => emit(TablesLoaded(tables: tables, filter: filter)),
     );
   }
@@ -43,7 +43,7 @@ class TablesCubit extends Cubit<TablesState> {
     );
 
     result.fold(
-      (failure) => emit(TablesError(failure)),
+      (failure) => emit(TablesError(failure: failure)),
       (_) {
         // Po sukcesie odśwież listę stolików
         final currentState = state;
@@ -79,7 +79,7 @@ class TablesCubit extends Cubit<TablesState> {
     }
   }
 
-  /// Odświeża dane z serwera/bazy lokalnej
+  /// Odświeża dane z serwerach/bazy lokalnej
   Future<void> refresh() async {
     final currentState = state;
     final currentFilter = currentState is TablesLoaded ? currentState.filter : null;

@@ -1,8 +1,5 @@
 part of 'reports_cubit_export.dart';
 
-// Importy dla Failure
-import '../../../../core/error/failure.dart';
-
 /// Stany dla ReportsCubit
 abstract class ReportsState extends Equatable {
   const ReportsState();

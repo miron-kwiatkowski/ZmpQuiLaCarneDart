@@ -1,10 +1,6 @@
 part of 'tables_cubit_export.dart';
 
 /// Stany dla TablesCubit
-/// 
-/// Wzorzec: State Pattern z flutter_bloc
-/// Dlaczego: Immutable stany zapewniają przewidywalność
-/// i ułatwiają debugowanie zmian stanu w aplikacji
 abstract class TablesState extends Equatable {
   const TablesState();
 
@@ -12,12 +8,14 @@ abstract class TablesState extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Stan początkowy - ładowanie danych
+class TablesInitial extends TablesState {
+  const TablesInitial();
+}
+
 class TablesLoading extends TablesState {
   const TablesLoading();
 }
 
-/// Stan z załadowaną listą stolików
 class TablesLoaded extends TablesState {
   final List<TableEntity> tables;
   final String? filter;
@@ -26,64 +24,60 @@ class TablesLoaded extends TablesState {
 
   @override
   List<Object?> get props => [tables, filter];
+  
+  // Pomocnicze gettery dla UI
+  List<TableEntity> get availableTables => 
+      tables.where((t) => t.isAvailable).toList();
+      
+  List<TableEntity> get occupiedTables => 
+      tables.where((t) => t.isOccupied).toList();
+      
+  List<TableEntity> get reservedTables => 
+      tables.where((t) => t.isReserved).toList();
+      
+  List<TableEntity> get cleaningTables => 
+      tables.where((t) => t.requiresCleaning).toList();
+      
+  List<TableEntity> get outOfServiceTables => 
+      tables.where((t) => t.isOutOfService).toList();
 
-  /// Filtruje stoliki po statusie
-  TablesLoaded copyWithFilter(String? newFilter) {
-    if (newFilter == null) {
-      return TablesLoaded(tables: tables);
-    }
-    
-    final filteredTables = tables.where((table) {
-      switch (newFilter) {
-        case 'available':
-          return table.isAvailable;
-        case 'occupied':
-          return table.isOccupied;
-        case 'reserved':
-          return table.isReserved;
-        case 'cleaning':
-          return table.requiresCleaning;
-        case 'out_of_service':
-          return table.isOutOfService;
-        default:
-          return true;
-      }
-    }).toList();
+  TablesLoaded copyWith({List<TableEntity>? tables, String? filter}) {
+    return TablesLoaded(
+      tables: tables ?? this.tables,
+      filter: filter ?? this.filter,
+    );
+  }
 
-    return TablesLoaded(tables: filteredTables, filter: newFilter);
+  TablesLoaded copyWithFilter(String? filter) {
+    return TablesLoaded(
+      tables: tables,
+      filter: filter,
+    );
   }
 }
 
-/// Stan błędu
-class TablesError extends TablesState {
-  final Failure failure;
-
-  const TablesError(this.failure);
-
-  @override
-  List<Object?> get props => [failure];
-}
-
-/// Stan aktualizacji statusu stolika (w trakcie)
 class TableStatusUpdating extends TablesState {
   final String tableToken;
-
   const TableStatusUpdating(this.tableToken);
 
   @override
   List<Object?> get props => [tableToken];
 }
 
-/// Stan sukcesu aktualizacji statusu
 class TableStatusUpdated extends TablesState {
   final String tableToken;
   final String newStatus;
-
-  const TableStatusUpdated({
-    required this.tableToken,
-    required this.newStatus,
-  });
+  const TableStatusUpdated({required this.tableToken, required this.newStatus});
 
   @override
   List<Object?> get props => [tableToken, newStatus];
+}
+
+class TablesError extends TablesState {
+  final Failure failure;
+
+  const TablesError({required this.failure});
+
+  @override
+  List<Object?> get props => [failure];
 }

@@ -1,5 +1,5 @@
-import '../domain/models/websocket_event.dart';
-import '../data/services/websocket_service.dart';
+import 'package:quilacarne_waiter/core/websocket/domain/models/websocket_event.dart';
+import 'package:quilacarne_waiter/core/websocket/data/services/websocket_service.dart';
 
 /// Handler for table updates
 /// Topic: /topic/tables/updates

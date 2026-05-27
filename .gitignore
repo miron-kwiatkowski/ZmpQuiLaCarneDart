@@ -1,20 +1,64 @@
 ```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+*.class
+
 # Dependencies
-.dart_tool/
-.packages
-.pub/
-
-# Build outputs
-build/
-dist/
-
-# Environment
+node_modules/
+venv/
+.venv/
 .env
 .env.local
-*.env.*
+.env.*
 
-# Logs
+# Build directories
+dist/
+build/
+target/
+.gradle/
+
+# Python specific
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
 *.log
+*.tmp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Dart/Flutter specific
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+*.g.dart
 
 # IDE
 .vscode/
@@ -22,41 +66,20 @@ dist/
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
+# Logs
+*.log
+
+# Temp files
+*.tmp
 
 # Coverage
 coverage/
 htmlcov/
 .coverage
 
-# Python cache (if Python project exists)
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Node.js (if Node.js project exists)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Java/Gradle (if Java project exists)
-target/
-.gradle/
-*.class
-*.jar
-*.war
-
-# C/C++ (if C/C++ project exists)
-*.o
-*.a
-*.so
-*.dll
-*.exe
-*.out
+# MyPy
+.mypy_cache/
+.pytest_cache/
 
 # Compressed files
 *.zip

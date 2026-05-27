@@ -42,12 +42,12 @@ abstract class WaiterLocalDataSource {
 class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   final Isar _isar;
 
-  WaiterLocalDataSourceImpl({Isar? isar}) : _isar = isar ?? LocalDatabase.instance.isar;
+  WaiterLocalDataSourceImpl({Isar? isar}) : _isar = isar ?? LocalDatabase.instance;
 
   @override
   Future<List<TableEntity>> getTables() async {
     try {
-      final tables = await _isar.isarTables.filter().idIsNotNull().findAll();
+      final tables = await _isar.isarTables.where().findAll();
       return tables.map((t) => t.toEntity()).toList();
     } catch (e) {
       throw Exception('Błąd odczytu stolików z cache: $e');
@@ -59,7 +59,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
     try {
       await _isar.writeTxn(() async {
         for (final table in tables) {
-          final existing = await _isar.isarTables.get(table.token.hashCode);
+          final existing = await _isar.isarTables.filter().tokenEqualTo(table.token).findFirst();
           if (existing != null) {
             existing
               ..statusToken = table.statusToken
@@ -70,7 +70,6 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
             await _isar.isarTables.put(existing);
           } else {
             final newTable = IsarTable.fromEntity(table)
-              ..id = table.token.hashCode
               ..createdAt = DateTime.now()
               ..lastUpdatedAt = DateTime.now();
             await _isar.isarTables.put(newTable);
@@ -85,7 +84,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   @override
   Future<List<DishEntity>> getDishes() async {
     try {
-      final dishes = await _isar.isarDishes.filter().idIsNotNull().findAll();
+      final dishes = await _isar.isarDishs.where().findAll();
       return dishes.map((d) => d.toEntity()).toList();
     } catch (e) {
       throw Exception('Błąd odczytu dań z cache: $e');
@@ -97,7 +96,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
     try {
       await _isar.writeTxn(() async {
         for (final dish in dishes) {
-          final existing = await _isar.isarDishes.get(dish.token.hashCode);
+          final existing = await _isar.isarDishs.filter().tokenEqualTo(dish.token).findFirst();
           if (existing != null) {
             existing
               ..name = dish.name
@@ -110,13 +109,12 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
               ..unavailabilityReason = dish.unavailabilityReason
               ..imageUrl = dish.imageUrl
               ..lastUpdatedAt = DateTime.now();
-            await _isar.isarDishes.put(existing);
+            await _isar.isarDishs.put(existing);
           } else {
             final newDish = IsarDish.fromEntity(dish)
-              ..id = dish.token.hashCode
               ..createdAt = DateTime.now()
               ..lastUpdatedAt = DateTime.now();
-            await _isar.isarDishes.put(newDish);
+            await _isar.isarDishs.put(newDish);
           }
         }
       });
@@ -128,12 +126,12 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   @override
   Future<DishEntity?> getDishByToken(String token) async {
     try {
-      final dish = await _isar.isarDishes.get(token.hashCode);
-      return dish?.toEntity();
+      return await _isar.isarDishs.filter().tokenEqualTo(token).findFirst().then((d) => d?.toEntity());
     } catch (e) {
       throw Exception('Błąd odczytu dania: $e');
     }
   }
+
 
   @override
   Future<List<OrderEntity>> getOrdersForReservation(String reservationToken) async {
@@ -153,7 +151,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
     try {
       await _isar.writeTxn(() async {
         final existing = order.token != null 
-            ? await _isar.isarOrders.get(order.token.hashCode) 
+            ? await _isar.isarOrders.filter().tokenEqualTo(order.token).findFirst()
             : null;
         if (existing != null) {
           existing
@@ -167,7 +165,6 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
           await _isar.isarOrders.put(existing);
         } else {
           final newOrder = IsarOrder.fromEntity(order)
-            ..id = (order.token ?? DateTime.now().millisecondsSinceEpoch.toString()).hashCode
             ..createdAt = order.createdAt;
           await _isar.isarOrders.put(newOrder);
         }
@@ -181,7 +178,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   Future<void> updateOrderStatus(String orderToken, String statusToken) async {
     try {
       await _isar.writeTxn(() async {
-        final order = await _isar.isarOrders.get(orderToken.hashCode);
+        final order = await _isar.isarOrders.filter().tokenEqualTo(orderToken).findFirst();
         if (order != null) {
           order.statusToken = statusToken;
           order.updatedAt = DateTime.now();
@@ -198,7 +195,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   @override
   Future<List<ReservationEntity>> getReservations() async {
     try {
-      final reservations = await _isar.isarReservations.filter().idIsNotNull().findAll();
+      final reservations = await _isar.isarReservations.where().findAll();
       return reservations.map((r) => r.toEntity()).toList();
     } catch (e) {
       throw Exception('Błąd odczytu rezerwacji: $e');
@@ -209,7 +206,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   Future<void> cacheReservation(ReservationEntity reservation) async {
     try {
       await _isar.writeTxn(() async {
-        final existing = await _isar.isarReservations.get(reservation.token.hashCode);
+        final existing = await _isar.isarReservations.filter().tokenEqualTo(reservation.token).findFirst();
         if (existing != null) {
           existing
             ..tableToken = reservation.tableToken
@@ -226,7 +223,6 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
           await _isar.isarReservations.put(existing);
         } else {
           final newReservation = IsarReservation.fromEntity(reservation)
-            ..id = reservation.token.hashCode
             ..createdAt = DateTime.now()
             ..updatedAt = DateTime.now();
           await _isar.isarReservations.put(newReservation);
@@ -240,7 +236,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   @override
   Future<ReservationEntity?> getReservationByToken(String token) async {
     try {
-      final reservation = await _isar.isarReservations.get(token.hashCode);
+      final reservation = await _isar.isarReservations.filter().tokenEqualTo(token).findFirst();
       return reservation?.toEntity();
     } catch (e) {
       throw Exception('Błąd odczytu rezerwacji: $e');
@@ -250,7 +246,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   @override
   Future<List<GuestReportEntity>> getGuestReports() async {
     try {
-      final reports = await _isar.isarGuestReports.filter().idIsNotNull().findAll();
+      final reports = await _isar.isarGuestReports.where().findAll();
       return reports.map((r) => r.toEntity()).toList();
     } catch (e) {
       throw Exception('Błąd odczytu zgłoszeń: $e');
@@ -262,7 +258,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
     try {
       await _isar.writeTxn(() async {
         final existing = report.token != null 
-            ? await _isar.isarGuestReports.get(report.token.hashCode) 
+            ? await _isar.isarGuestReports.filter().tokenEqualTo(report.token).findFirst()
             : null;
         if (existing != null) {
           existing
@@ -274,7 +270,6 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
           await _isar.isarGuestReports.put(existing);
         } else {
           final newReport = IsarGuestReport.fromEntity(report)
-            ..id = (report.token ?? DateTime.now().millisecondsSinceEpoch.toString()).hashCode
             ..createdAt = report.createdAt;
           await _isar.isarGuestReports.put(newReport);
         }
@@ -283,6 +278,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
       throw Exception('Błąd zapisu zgłoszenia: $e');
     }
   }
+
 
   @override
   Future<List<QueuedOperationModel>> getPendingOperations() async {
@@ -303,7 +299,6 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
     try {
       await _isar.writeTxn(() async {
         final queuedOp = IsarQueuedOperation.fromModel(operation)
-          ..id = operation.id.hashCode
           ..createdAt = DateTime.now();
         await _isar.isarQueuedOperations.put(queuedOp);
       });
@@ -316,7 +311,10 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   Future<void> removeOperationFromQueue(String operationId) async {
     try {
       await _isar.writeTxn(() async {
-        await _isar.isarQueuedOperations.delete(operationId.hashCode);
+        final op = await _isar.isarQueuedOperations.filter().operationIdEqualTo(operationId).findFirst();
+        if (op != null) {
+          await _isar.isarQueuedOperations.delete(op.id);
+        }
       });
     } catch (e) {
       throw Exception('Błąd usuwania operacji z kolejki: $e');
@@ -327,7 +325,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   Future<void> updateOperationRetryCount(String operationId, int retryCount) async {
     try {
       await _isar.writeTxn(() async {
-        final operation = await _isar.isarQueuedOperations.get(operationId.hashCode);
+        final operation = await _isar.isarQueuedOperations.filter().operationIdEqualTo(operationId).findFirst();
         if (operation != null) {
           operation.retryCount = retryCount;
           operation.lastAttemptAt = DateTime.now();
@@ -343,7 +341,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   Future<void> markOperationAsCompleted(String operationId) async {
     try {
       await _isar.writeTxn(() async {
-        final operation = await _isar.isarQueuedOperations.get(operationId.hashCode);
+        final operation = await _isar.isarQueuedOperations.filter().operationIdEqualTo(operationId).findFirst();
         if (operation != null) {
           operation.status = 'completed';
           operation.completedAt = DateTime.now();
@@ -359,7 +357,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
   Future<void> markOperationAsFailed(String operationId, String errorMessage) async {
     try {
       await _isar.writeTxn(() async {
-        final operation = await _isar.isarQueuedOperations.get(operationId.hashCode);
+        final operation = await _isar.isarQueuedOperations.filter().operationIdEqualTo(operationId).findFirst();
         if (operation != null) {
           operation.status = 'failed';
           operation.errorMessage = errorMessage;
@@ -372,12 +370,13 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
     }
   }
 
+
   @override
   Future<void> clearAllData() async {
     try {
       await _isar.writeTxn(() async {
         await _isar.isarTables.clear();
-        await _isar.isarDishes.clear();
+        await _isar.isarDishs.clear();
         await _isar.isarOrders.clear();
         await _isar.isarReservations.clear();
         await _isar.isarGuestReports.clear();
@@ -392,7 +391,7 @@ class WaiterLocalDataSourceImpl implements WaiterLocalDataSource {
     try {
       return {
         'tables': await _isar.isarTables.count(),
-        'dishes': await _isar.isarDishes.count(),
+        'dishes': await _isar.isarDishs.count(),
         'orders': await _isar.isarOrders.count(),
         'reservations': await _isar.isarReservations.count(),
         'guestReports': await _isar.isarGuestReports.count(),

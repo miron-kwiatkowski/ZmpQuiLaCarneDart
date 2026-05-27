@@ -1,4 +1,7 @@
 import 'package:dio/dio.dart';
+import '../models/dto/table_dto.dart';
+import '../models/dto/dish_dto.dart';
+import '../models/dto/reservation_dto.dart';
 
 /// Zdalne źródło danych dla modułu kelnera (Data Layer)
 /// 
@@ -6,10 +9,10 @@ import 'package:dio/dio.dart';
 /// Nie zawiera żadnej logiki biznesowej - tylko HTTP calls.
 abstract class WaiterRemoteDataSource {
   /// Pobiera listę stolików z API
-  Future<List<TableModel>> getTables();
+  Future<List<TableDto>> getTables();
   
   /// Pobiera listę dań z API
-  Future<List<DishModel>> getDishes({List<String>? excludedAllergens});
+  Future<List<DishDto>> getDishes({List<String>? excludedAllergens});
   
   /// Dodaje pozycje do rezerwacji
   Future<void> addItemsToReservation({
@@ -47,7 +50,7 @@ abstract class WaiterRemoteDataSource {
   });
   
   /// Pobiera szczegóły rezerwacji
-  Future<ReservationModel> getReservationByToken(String token);
+  Future<ReservationDto> getReservationByToken(String token);
 }
 
 /// Implementacja zdalnego źródła danych
@@ -62,21 +65,20 @@ class WaiterRemoteDataSourceImpl implements WaiterRemoteDataSource {
         _baseUrl = baseUrl;
   
   @override
-  Future<List<TableModel>> getTables() async {
+  Future<List<TableDto>> getTables() async {
     final response = await _dio.get('/api/tables');
     
-    // TODO: Handle error responses properly
     if (response.statusCode == 200 && response.data['success'] == true) {
       final data = response.data['data'] as Map<String, dynamic>;
       final items = data['items'] as List<dynamic>;
-      return items.map((item) => TableModel.fromJson(item)).toList();
+      return items.map((item) => TableDto.fromJson(item)).toList();
     }
     
     throw ServerException('Failed to fetch tables');
   }
   
   @override
-  Future<List<DishModel>> getDishes({List<String>? excludedAllergens}) async {
+  Future<List<DishDto>> getDishes({List<String>? excludedAllergens}) async {
     final response = await _dio.get(
       '/api/dishes',
       queryParameters: excludedAllergens != null
@@ -87,7 +89,7 @@ class WaiterRemoteDataSourceImpl implements WaiterRemoteDataSource {
     if (response.statusCode == 200 && response.data['success'] == true) {
       final data = response.data['data'] as Map<String, dynamic>;
       final items = data['items'] as List<dynamic>;
-      return items.map((item) => DishModel.fromJson(item)).toList();
+      return items.map((item) => DishDto.fromJson(item)).toList();
     }
     
     throw ServerException('Failed to fetch dishes');
@@ -116,9 +118,6 @@ class WaiterRemoteDataSourceImpl implements WaiterRemoteDataSource {
     required int quantity,
     String? note,
   }) async {
-    // API endpoint: DELETE /api/reservations/item/remove
-    // Request body: { dishToken, quantity, note }
-    // Query param: reservationToken
     final response = await _dio.delete(
       '/api/reservations/item/remove',
       queryParameters: {'reservationToken': reservationToken},
@@ -199,12 +198,12 @@ class WaiterRemoteDataSourceImpl implements WaiterRemoteDataSource {
   }
   
   @override
-  Future<ReservationModel> getReservationByToken(String token) async {
+  Future<ReservationDto> getReservationByToken(String token) async {
     final response = await _dio.get('/api/reservations/$token');
     
     if (response.statusCode == 200 && response.data['success'] == true) {
       final data = response.data['data'] as Map<String, dynamic>;
-      return ReservationModel.fromJson(data);
+      return ReservationDto.fromJson(data);
     }
     
     throw ServerException('Failed to fetch reservation details');
@@ -221,16 +220,3 @@ class ServerException implements Exception {
   String toString() => 'ServerException: $message';
 }
 
-// Forward declarations for models (to be implemented in separate files)
-// These are placeholders to make the code compile
-class TableModel {
-  factory TableModel.fromJson(Map<String, dynamic> json) => TableModel();
-}
-
-class DishModel {
-  factory DishModel.fromJson(Map<String, dynamic> json) => DishModel();
-}
-
-class ReservationModel {
-  factory ReservationModel.fromJson(Map<String, dynamic> json) => ReservationModel();
-}

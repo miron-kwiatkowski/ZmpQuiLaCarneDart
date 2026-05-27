@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:isar/isar.dart';
@@ -26,9 +27,8 @@ class NetworkInfoImpl implements NetworkInfo {
   @override
   Future<bool> get isConnected async {
     try {
-      final result = await _connectivity.checkConnectivity();
-      // Sprawdź czy mamy jakiekolwiek aktywne połączenie
-      return result.any((status) => 
+      final results = await _connectivity.checkConnectivity();
+      return results.any((status) => 
         status != ConnectivityResult.none && 
         status != ConnectivityResult.bluetooth
       );
@@ -60,7 +60,6 @@ class OfflineQueueManager {
   final NetworkInfo networkInfo;
   final Isar _database;
   final Dio _dio;
-  final String _baseUrl;
   
   // Lista operacji w pamięci (cache)
   final List<QueuedOperation> _pendingOperations = [];
@@ -75,10 +74,8 @@ class OfflineQueueManager {
     required this.networkInfo,
     required Isar database,
     required Dio dio,
-    String baseUrl = 'https://api.quilacarne.com',
   })  : _database = database,
-        _dio = dio,
-        _baseUrl = baseUrl {
+        _dio = dio {
     _startListeningToConnectivityChanges();
   }
   
@@ -99,15 +96,8 @@ class OfflineQueueManager {
   Future<void> enqueue(QueuedOperation operation) async {
     // Zapisz do lokalnej bazy danych Isar
     await _database.writeTxn(() async {
-      final isarOp = IsarQueuedOperation()
-        ..operationId = operation.id
-        ..type = operation.type.name
-        ..payload = operation.payload
-        ..timestamp = operation.createdAt
-        ..retryCount = operation.retryCount
-        ..status = operation.status.name
-        ..errorMessage = operation.errorMessage;
-      
+      final model = QueuedOperationModel.fromDomain(operation);
+      final isarOp = IsarQueuedOperation.fromModel(model);
       await _database.isarQueuedOperations.put(isarOp);
     });
     
@@ -145,28 +135,14 @@ class OfflineQueueManager {
       
       for (final isarOp in pendingOps) {
         // Konwertuj na domenową operację
-        final operation = QueuedOperation(
-          id: isarOp.operationId,
-          type: QueuedOperationType.values.firstWhere(
-            (e) => e.name == isarOp.type,
-            orElse: () => QueuedOperationType.addItemsToReservation,
-          ),
-          payload: isarOp.payload,
-          createdAt: isarOp.timestamp,
-          retryCount: isarOp.retryCount,
-          status: QueuedOperationStatus.values.firstWhere(
-            (e) => e.name == isarOp.status,
-            orElse: () => QueuedOperationStatus.pending,
-          ),
-          errorMessage: isarOp.errorMessage,
-        );
-        
+        final operation = isarOp.toModel().toDomain();
         await _executeOperation(operation);
       }
     } finally {
       _isSyncing = false;
     }
   }
+
   
   /// Wykonuje pojedynczą operację
   /// 
@@ -212,11 +188,11 @@ class OfflineQueueManager {
       }
       
       // Sukces - usuń operację z kolejki
-      if (response?.statusCode == 200 || response?.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         await _removeOperation(operation.id);
       } else {
         // Błąd HTTP - retry
-        await _handleOperationError(operation, 'HTTP ${response?.statusCode}');
+        await _handleOperationError(operation, 'HTTP ${response.statusCode}');
       }
     } catch (e) {
       // Błąd sieciowy lub inny - retry
@@ -312,7 +288,10 @@ class OfflineQueueManager {
     if (operation.retryCount >= maxRetries) {
       // Przekroczono limit prób - oznacz jako failed w bazie
       await _database.writeTxn(() async {
-        final isarOp = await _database.isarQueuedOperations.get(operation.id);
+        final isarOp = await _database.isarQueuedOperations
+            .filter()
+            .operationIdEqualTo(operation.id)
+            .findFirst();
         if (isarOp != null) {
           isarOp.status = 'failed';
           isarOp.errorMessage = error;
@@ -328,7 +307,10 @@ class OfflineQueueManager {
     } else {
       // Zwiększ retry count i zapisz w bazie
       await _database.writeTxn(() async {
-        final isarOp = await _database.isarQueuedOperations.get(operation.id);
+        final isarOp = await _database.isarQueuedOperations
+            .filter()
+            .operationIdEqualTo(operation.id)
+            .findFirst();
         if (isarOp != null) {
           isarOp.retryCount = isarOp.retryCount + 1;
           isarOp.lastAttemptAt = DateTime.now();
@@ -351,7 +333,10 @@ class OfflineQueueManager {
   Future<void> _removeOperation(String operationId) async {
     // Usuń z bazy danych
     await _database.writeTxn(() async {
-      final isarOp = await _database.isarQueuedOperations.get(operationId);
+      final isarOp = await _database.isarQueuedOperations
+          .filter()
+          .operationIdEqualTo(operationId)
+          .findFirst();
       if (isarOp != null) {
         isarOp.status = 'completed';
         isarOp.completedAt = DateTime.now();
@@ -363,6 +348,7 @@ class OfflineQueueManager {
     _pendingOperations.removeWhere((op) => op.id == operationId);
     print('Operation $operationId completed and removed from queue');
   }
+
   
   /// Zwraca liczbę oczekujących operacji
   int get pendingOperationsCount => _pendingOperations.length;

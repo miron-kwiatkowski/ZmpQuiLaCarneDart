@@ -1,5 +1,6 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'auth_token_provider.dart';
 
 /// Interceptor dla Dio obsługujący automatyczne odświeżanie tokenów
 /// 
@@ -7,16 +8,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// Dlaczego: Centralizacja logiki autoryzacji, automatyczne refresh tokenów
 /// przy otrzymaniu 401, bez potrzeby powtarzania kodu w każdym repozytorium
 class AuthInterceptor extends Interceptor {
-  final FlutterSecureStorage _secureStorage;
+  final AuthTokenProvider _tokenProvider;
   final Dio _dio;
-  
-  static const String _accessTokenKey = 'access_token';
-  static const String _refreshTokenKey = 'refresh_token';
   
   bool _isRefreshing = false;
   final List<Function(String)> _requestQueue = [];
 
-  AuthInterceptor(this._dio, this._secureStorage);
+  AuthInterceptor(this._dio, this._tokenProvider);
 
   @override
   void onRequest(
@@ -24,7 +22,7 @@ class AuthInterceptor extends Interceptor {
     RequestInterceptorHandler handler,
   ) async {
     // Dodaj token do każdego żądania
-    final accessToken = await _secureStorage.read(key: _accessTokenKey);
+    final accessToken = await _tokenProvider.getAccessToken();
     
     if (accessToken != null) {
       options.headers['Authorization'] = 'Bearer $accessToken';
@@ -66,7 +64,7 @@ class AuthInterceptor extends Interceptor {
         }
       } catch (e) {
         // Nie udało się odświeżyć tokena - wyloguj użytkownika
-        await _logout();
+        await _tokenProvider.clearTokens();
         return handler.next(err);
       }
     }
@@ -84,7 +82,7 @@ class AuthInterceptor extends Interceptor {
     _isRefreshing = true;
 
     try {
-      final refreshToken = await _secureStorage.read(key: _refreshTokenKey);
+      final refreshToken = await _tokenProvider.getRefreshToken();
       
       if (refreshToken == null) {
         throw Exception('No refresh token available');
@@ -101,10 +99,10 @@ class AuthInterceptor extends Interceptor {
         final newRefreshToken = data['refreshToken'] as String?;
 
         // Zapisz nowe tokeny
-        await _secureStorage.write(key: _accessTokenKey, value: newAccessToken);
-        if (newRefreshToken != null) {
-          await _secureStorage.write(key: _refreshTokenKey, value: newRefreshToken);
-        }
+        await _tokenProvider.saveTokens(
+          accessToken: newAccessToken, 
+          refreshToken: newRefreshToken ?? refreshToken,
+        );
 
         // Wykonaj wszystkie oczekujące żądania
         for (final callback in _requestQueue) {
@@ -126,46 +124,14 @@ class AuthInterceptor extends Interceptor {
 
   /// Czeka na zakończenie procesu refresh tokena
   Future<String?> _waitForRefresh() async {
-    return await Future.any([
-      Future.delayed(const Duration(seconds: 30), () => null),
-      Future((resolve, reject) {
-        _requestQueue.add((token) => resolve(token));
-      }),
-    ]);
-  }
-
-  /// Wylogowuje użytkownika
-  Future<void> _logout() async {
-    await _secureStorage.delete(key: _accessTokenKey);
-    await _secureStorage.delete(key: _refreshTokenKey);
+    final completer = Completer<String?>();
+    _requestQueue.add((token) => completer.complete(token));
     
-    try {
-      await _dio.post('/api/auth/logout');
-    } catch (e) {
-      // Ignoruj błędy podczas logoutu
-    }
-  }
-
-  /// Metody pomocnicze do zarządzania tokenami
-  Future<void> saveTokens({
-    required String accessToken,
-    required String refreshToken,
-  }) async {
-    await _secureStorage.write(key: _accessTokenKey, value: accessToken);
-    await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
-  }
-
-  Future<void> clearTokens() async {
-    await _secureStorage.delete(key: _accessTokenKey);
-    await _secureStorage.delete(key: _refreshTokenKey);
-  }
-
-  Future<String?> getAccessToken() async {
-    return await _secureStorage.read(key: _accessTokenKey);
-  }
-
-  Future<bool> isLoggedIn() async {
-    final token = await _secureStorage.read(key: _accessTokenKey);
-    return token != null;
+    // Timeout aby uniknąć wiszących żądań
+    return await completer.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => null,
+    );
   }
 }
+

@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import '../../../../core/error/failure.dart';
+import '../../../../core/error/exceptions.dart';
 import '../../domain/entities/auth_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
@@ -30,9 +31,9 @@ class AuthRepositoryImpl implements AuthRepository {
 
       return Right(authEntity);
     } on ServerException catch (e) {
-      return Left(ServerFailure(e.message));
+      return Left(ServerFailure(message: e.message));
     } catch (e) {
-      return Left(ServerFailure('Unexpected error during login: $e'));
+      return Left(ServerFailure(message: 'Unexpected error during login: $e'));
     }
   }
 
@@ -52,9 +53,9 @@ class AuthRepositoryImpl implements AuthRepository {
 
       return Right(authEntity);
     } on ServerException catch (e) {
-      return Left(ServerFailure(e.message));
+      return Left(ServerFailure(message: e.message));
     } catch (e) {
-      return Left(ServerFailure('Unexpected error during token refresh: $e'));
+      return Left(ServerFailure(message: 'Unexpected error during token refresh: $e'));
     }
   }
 
@@ -64,9 +65,9 @@ class AuthRepositoryImpl implements AuthRepository {
       await remoteDataSource.logout();
       return const Right(true);
     } on ServerException catch (e) {
-      return Left(ServerFailure(e.message));
+      return Left(ServerFailure(message: e.message));
     } catch (e) {
-      return Left(ServerFailure('Unexpected error during logout: $e'));
+      return Left(ServerFailure(message: 'Unexpected error during logout: $e'));
     }
   }
 }

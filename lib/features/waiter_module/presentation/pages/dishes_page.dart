@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:qui_la_carne_app/core/injection_container.dart';
+import '../cubits/dishes/dishes_cubit.dart';
 import '../../domain/entities/dish_entity.dart';
-import '../../domain/usecases/get_dishes_usecase.dart';
-import 'dishes_cubit.dart';
 
 /// Strona z listą dań
 /// QlC12: Kelner widzi listę dań z detalami (skład, alergeny, powody niedostępności)
@@ -162,7 +160,7 @@ class DishCard extends StatelessWidget {
         trailing: dish.isAvailable
             ? null
             : Tooltip(
-                message: dish.unavailableReason ?? 'Niedostępne',
+                message: dish.unavailabilityReason ?? 'Niedostępne',
                 child: const Icon(Icons.info_outline, color: Colors.orange),
               ),
         children: [
@@ -171,13 +169,13 @@ class DishCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (dish.description != null) ...[
-                  Text(
-                    dish.description!,
-                    style: const TextStyle(fontStyle: FontStyle.italic),
-                  ),
-                  const SizedBox(height: 8),
-                ],
+                ...[
+                Text(
+                  dish.description,
+                  style: const TextStyle(fontStyle: FontStyle.italic),
+                ),
+                const SizedBox(height: 8),
+              ],
                 const Text('Składniki:', style: TextStyle(fontWeight: FontWeight.bold)),
                 Wrap(
                   spacing: 4,

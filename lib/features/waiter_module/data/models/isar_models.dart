@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'package:isar/isar.dart';
 import '../../domain/entities/table_entity.dart';
 import '../../domain/entities/dish_entity.dart';
 import '../../domain/entities/order_entity.dart';
 import '../../domain/entities/reservation_entity.dart';
 import '../../domain/entities/guest_report_entity.dart';
+import 'queued_operation_model.dart';
 
 part 'isar_models.g.dart';
 
@@ -71,10 +73,8 @@ class IsarDish {
   late int priceInCents;
   late String categoryToken;
 
-  @JsonKey(ignore: false)
   late List<String> ingredientTokens;
 
-  @JsonKey(ignore: false)
   late List<String> allergenTokens;
 
   late bool isAvailable;
@@ -174,7 +174,6 @@ class IsarOrder {
   late int totalAmountInCents;
   late bool isOfflineCreated;
 
-  @Embedded('items')
   late List<IsarOrderItem> items;
 
   late DateTime createdAt;
@@ -251,9 +250,9 @@ class IsarReservation {
       startTime: startTime,
       endTime: endTime,
       guestCount: guestCount,
-      totalPriceInCents: totalPriceInCents,
+      totalPrice: totalPriceInCents / 100.0,
       notes: notes,
-      orderItems: [], // Order items są ładowane osobno
+      orderItems: const [], // Order items są ładowane osobno
     );
   }
 
@@ -334,7 +333,12 @@ class IsarQueuedOperation {
   late String operationId;
 
   late String type; // np. 'addItemsToReservation', 'removeItemFromReservation'
+  
+  @ignore
   late Map<String, dynamic> payload;
+
+  late String payloadJson;
+  
   late DateTime timestamp;
 
   late int retryCount;
@@ -351,7 +355,7 @@ class IsarQueuedOperation {
     return QueuedOperationModel(
       id: operationId,
       type: type,
-      payload: payload,
+      payload: jsonDecode(payloadJson) as Map<String, dynamic>,
       timestamp: timestamp,
       retryCount: retryCount,
       status: status,
@@ -364,7 +368,7 @@ class IsarQueuedOperation {
     return IsarQueuedOperation()
       ..operationId = model.id
       ..type = model.type
-      ..payload = model.payload
+      ..payloadJson = jsonEncode(model.payload)
       ..timestamp = model.timestamp
       ..retryCount = model.retryCount
       ..status = model.status

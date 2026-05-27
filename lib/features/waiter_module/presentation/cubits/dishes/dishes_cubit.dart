@@ -1,9 +1,8 @@
 import 'package:equatable/equatable.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:qui_la_carne_app/core/injection_container.dart';
-import '../../domain/entities/dish_entity.dart';
-import '../../domain/usecases/get_dishes_usecase.dart';
+import 'package:quilacarne_waiter/core/di/injection_container.dart';
+import 'package:quilacarne_waiter/features/waiter_module/domain/entities/dish_entity.dart';
+import 'package:quilacarne_waiter/features/waiter_module/domain/usecases/waiter_usecases.dart';
 
 /// States dla DishesCubit
 abstract class DishesState extends Equatable {

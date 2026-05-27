@@ -2,8 +2,7 @@ import 'package:dartz/dartz.dart';
 import '../../../../core/error/failure.dart';
 import '../entities/table_entity.dart';
 import '../entities/dish_entity.dart';
-import '../entities/order_entity.dart';
-import '../entities/guest_report_entity.dart';
+import '../entities/reservation_entity.dart';
 import '../repositories/waiter_repository.dart';
 
 /// Use Case: Pobieranie listy stolików
@@ -113,7 +112,7 @@ class MarkAbsentUseCase {
 
   /// Oznacza rezerwację jako nieobecność (no-show)
   Future<Either<Failure, bool>> call({required String reservationToken}) async {
-    return await repository.markReservationAbsent(reservationToken: reservationToken);
+    return await repository.markReservationAbsent(reservationToken);
   }
 }
 

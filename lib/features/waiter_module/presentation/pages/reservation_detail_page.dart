@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/order_entity.dart';
 import '../../domain/entities/dish_entity.dart';
-import '../cubits/orders/orders_cubit.dart';
+import '../../domain/entities/reservation_entity.dart';
+import '../../domain/repositories/waiter_repository.dart';
+import '../cubits/orders/orders_cubit_export.dart';
 
 /// Strona szczegółów rezerwacji z możliwością edycji zamówienia
 /// QlC10: Kelner może aktywować rezerwację, domówić produkty, dodawać notatki
@@ -43,19 +45,94 @@ class _ReservationDetailPageState extends State<ReservationDetailPage> {
           ),
         ],
       ),
-      body: widget.order != null
-          ? _buildOrderContent(widget.order!)
-          : BlocBuilder<OrdersCubit, OrdersState>(
-              builder: (context, state) {
-                if (state is OrdersLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (state is OrdersError) {
-                  return Center(child: Text('Błąd: ${state.message}'));
-                }
-                return const Center(child: Text('Brak danych'));
-              },
+      body: BlocBuilder<OrdersCubit, OrdersState>(
+        builder: (context, state) {
+          if (state is OrdersLoading || state is OrdersSubmitting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (state is OrdersError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Błąd: ${state.failure.message}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => context.read<OrdersCubit>().loadReservationDetails(widget.reservationToken),
+                    child: const Text('Spróbuj ponownie'),
+                  ),
+                ],
+              ),
+            );
+          }
+          if (state is OrdersLoaded) {
+            return _buildOrderContentFromReservation(state.reservation);
+          }
+          
+          // Fallback if widget.order was provided but state is Initial
+          if (widget.order != null) {
+             return _buildOrderContent(widget.order!);
+          }
+
+          return const Center(child: Text('Brak danych'));
+        },
+      ),
+    );
+  }
+
+  Widget _buildOrderContentFromReservation(ReservationEntity reservation) {
+    return Column(
+      children: [
+        // Nagłówek z informacjami o rezerwacji
+        Card(
+          margin: const EdgeInsets.all(8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Rezerwacja: ${reservation.token}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    _buildStatusChip(reservation.statusToken),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text('Stolik: ${reservation.tableToken}'),
+                Text('Goście: ${reservation.guestCount}'),
+                Text('Suma: ${reservation.totalPrice.toStringAsFixed(2)} PLN'),
+                if (reservation.notes != null) ...[
+                  const SizedBox(height: 8),
+                  Text('Notatki: ${reservation.notes}', style: const TextStyle(fontStyle: FontStyle.italic)),
+                ],
+              ],
             ),
+          ),
+        ),
+
+        // Lista pozycji zamówienia
+        Expanded(
+          child: reservation.orderItems.isEmpty
+              ? const Center(child: Text('Brak pozycji w zamówieniu'))
+              : ListView.builder(
+                  itemCount: reservation.orderItems.length,
+                  itemBuilder: (context, index) {
+                    final item = reservation.orderItems[index];
+                    return OrderItemTile(
+                      item: item,
+                      onRemove: () => _confirmRemoveItem(item),
+                      onEditNote: () => _editItemNote(item),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 
@@ -79,7 +156,7 @@ class _ReservationDetailPageState extends State<ReservationDetailPage> {
                   children: [
                     _buildStatusChip(order.statusToken),
                     const SizedBox(width: 8),
-                    Text('Suma: ${order.totalPrice.toStringAsFixed(2)} PLN'),
+                    Text('Suma: ${order.totalAmount.toStringAsFixed(2)} PLN'),
                   ],
                 ),
               ],
@@ -109,6 +186,7 @@ class _ReservationDetailPageState extends State<ReservationDetailPage> {
     Color color;
     switch (statusToken.toUpperCase()) {
       case 'PENDING':
+      case 'ACTIVE':
         color = Colors.orange;
         break;
       case 'IN_PROGRESS':
@@ -118,6 +196,7 @@ class _ReservationDetailPageState extends State<ReservationDetailPage> {
         color = Colors.green;
         break;
       case 'CANCELLED':
+      case 'NO_SHOW':
         color = Colors.red;
         break;
       default:
@@ -137,18 +216,12 @@ class _ReservationDetailPageState extends State<ReservationDetailPage> {
     Navigator.pushNamed(context, '/dishes').then((result) {
       if (result is List<DishEntity>) {
         // Dodaj wybrane dania do zamówienia
-        context.read<OrdersCubit>().addItemsToReservation(
+        context.read<OrdersCubit>().addItems(
           reservationToken: widget.reservationToken,
-          items: result.map((dish) => OrderItemEntity(
-            token: '', // Generowane przez serwer
-            orderToken: widget.order!.token,
+          items: result.map((dish) => OrderItemToAdd(
             dishToken: dish.token,
-            dishName: dish.name,
             quantity: 1,
-            unitPrice: dish.price,
-            totalPrice: dish.price,
             note: null,
-            statusToken: 'PENDING',
           )).toList(),
         );
       }
@@ -169,10 +242,11 @@ class _ReservationDetailPageState extends State<ReservationDetailPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              context.read<OrdersCubit>().removeItemFromReservation(
+              context.read<OrdersCubit>().removeItem(
                 reservationToken: widget.reservationToken,
                 dishToken: item.dishToken,
                 quantity: item.quantity,
+                note: item.note,
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),

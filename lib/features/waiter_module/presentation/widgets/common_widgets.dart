@@ -125,7 +125,7 @@ class TableCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 30,
-                backgroundColor: _getStatusColor().withOpacity(0.2),
+                backgroundColor: _getStatusColor().withValues(alpha: 0.2),
                 child: Icon(
                   _getStatusIcon(),
                   size: 36,

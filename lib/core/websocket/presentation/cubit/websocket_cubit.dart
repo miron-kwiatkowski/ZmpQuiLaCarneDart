@@ -2,9 +2,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:injectable/injectable.dart';
 
-import '../domain/models/websocket_event.dart';
-import '../../data/services/websocket_service.dart';
-import '../../data/handlers/websocket_handlers.dart';
+import 'package:quilacarne_waiter/core/websocket/domain/models/websocket_event.dart';
+import 'package:quilacarne_waiter/core/websocket/data/services/websocket_service.dart';
+import 'package:quilacarne_waiter/core/websocket/data/handlers/websocket_handlers.dart';
 
 // States
 abstract class WebSocketState extends Equatable {

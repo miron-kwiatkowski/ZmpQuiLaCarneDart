@@ -1,5 +1,7 @@
 import 'package:get_it/get_it.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dio/dio.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../network/auth_interceptor.dart';
 import '../network/api_client.dart';
 import '../network/offline_queue_manager.dart';
@@ -40,24 +42,44 @@ final sl = GetIt.instance;
 Future<void> initDependencies() async {
   // ==================== EXTERNAL ====================
 
+  // Connectivity
+  sl.registerLazySingleton<Connectivity>(() => Connectivity());
+
   // Secure Storage dla tokenów
   sl.registerLazySingleton<FlutterSecureStorage>(
     () => const FlutterSecureStorage(),
   );
+
+  // Dio instance
+  sl.registerLazySingleton<Dio>(() => Dio());
 
   // ==================== CORE ====================
 
   // Local Database
   await LocalDatabase.initialize();
 
+  // Auth Token Provider
+  sl.registerLazySingleton<AuthTokenProvider>(
+    () => AuthTokenProviderImpl(sl()),
+  );
+
+  // Network Info
+  sl.registerLazySingleton<NetworkInfo>(
+    () => NetworkInfoImpl(sl()),
+  );
+
   // Local DataSource
   sl.registerLazySingleton<WaiterLocalDataSource>(
-    () => WaiterLocalDataSourceImpl(),
+    () => WaiterLocalDataSourceImpl(isar: LocalDatabase.instance),
   );
 
   // Offline Queue Manager
   sl.registerLazySingleton<OfflineQueueManager>(
-    () => OfflineQueueManager(apiClient: sl()),
+    () => OfflineQueueManager(
+      networkInfo: sl(), 
+      database: LocalDatabase.instance, 
+      dio: sl(),
+    ),
   );
 
   // Auth Interceptor
@@ -90,7 +112,7 @@ Future<void> initDependencies() async {
 
   // Remote Datasource
   sl.registerLazySingleton<AuthRemoteDataSource>(
-    () => AuthRemoteDataSourceImpl(apiClient: sl()),
+    () => AuthRemoteDataSourceImpl(dio: sl<ApiClient>().dio),
   );
 
   // Repository
@@ -118,7 +140,7 @@ Future<void> initDependencies() async {
 
   // Remote Datasource
   sl.registerLazySingleton<WaiterRemoteDataSource>(
-    () => WaiterRemoteDataSourceImpl(apiClient: sl()),
+    () => WaiterRemoteDataSourceImpl(dio: sl<ApiClient>().dio),
   );
 
   // Repository
@@ -126,7 +148,8 @@ Future<void> initDependencies() async {
     () => WaiterRepositoryImpl(
       remoteDataSource: sl(),
       localDataSource: sl(),
-      offlineQueueManager: sl(),
+      queueManager: sl(),
+      networkInfo: sl(),
     ),
   );
 
@@ -168,6 +191,7 @@ Future<void> initDependencies() async {
     ),
   );
 }
+
 
 /// Inicjalizacja bazy danych (wywołuje initDependencies)
 Future<void> initDatabase() async {

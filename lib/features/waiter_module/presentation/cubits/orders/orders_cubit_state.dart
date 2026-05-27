@@ -1,10 +1,5 @@
 part of 'orders_cubit_export.dart';
 
-// Importy dla encji - będą potrzebne po wygenerowaniu kodu
-import '../../domain/entities/reservation_entity.dart';
-import '../../../../core/error/failure.dart';
-import '../../domain/usecases/waiter_usecases.dart';
-
 /// Stany dla OrdersCubit
 abstract class OrdersState extends Equatable {
   const OrdersState();

@@ -1,4 +1,5 @@
 import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../features/waiter_module/data/models/isar_models.dart';
 
 part 'local_database.g.dart';
@@ -9,66 +10,77 @@ part 'local_database.g.dart';
 /// Dlaczego: Isar wymaga inicjalizacji przy starcie aplikacji,
 /// singleton zapewnia dostęp do tej samej instancji w całym app
 class LocalDatabase {
-  static late Isar _isar;
+  static Isar? _isar;
   static const String _dbName = 'quilacarne_db';
 
   /// Inicjalizacja bazy danych
   static Future<void> initialize() async {
-    if (Isar.instanceNames.isEmpty) {
-      _isar = await Isar.open([
-        // Waiter Module Models
-        IsarTableSchema,
-        IsarDishSchema,
-        IsarOrderSchema,
-        IsarOrderItemSchema,
-        IsarReservationSchema,
-        IsarGuestReportSchema,
-        IsarQueuedOperationSchema,
-        // Sync & Dictionary Models
-        SyncMetadataSchema,
-        UserEntitySchema,
-        IngredientEntitySchema,
-        AllergenEntitySchema,
-        DictionaryEntrySchema,
-      ], name: _dbName);
-    }
+    if (_isar != null && _isar!.isOpen) return;
+
+    // Pobranie katalogu dla bazy danych (wymagane na platformach mobilnych)
+    final dir = await getApplicationDocumentsDirectory();
+
+    _isar = await Isar.open([
+      // Waiter Module Models (z isar_models.dart)
+      IsarTableSchema,
+      IsarDishSchema,
+      IsarOrderSchema,
+      IsarReservationSchema,
+      IsarGuestReportSchema,
+      IsarQueuedOperationSchema,
+      // Sync & Dictionary Models (zdefiniowane poniżej)
+      IsarSyncMetadataSchema,
+      IsarUserSchema,
+      IsarIngredientSchema,
+      IsarAllergenSchema,
+      IsarDictionaryEntrySchema,
+    ], directory: dir.path, name: _dbName);
   }
 
   /// Pobierz instancję Isar
-  static Isar get instance => _isar;
+  static Isar get instance {
+    if (_isar == null) {
+      throw Exception("LocalDatabase not initialized. Call initialize() first.");
+    }
+    return _isar!;
+  }
 
   /// Wyczyść całą bazę danych (np. przy wylogowaniu)
   static Future<void> clear() async {
-    await _isar.writeTxn(() async {
+    final isar = instance;
+    await isar.writeTxn(() async {
       // Waiter module data
-      await _isar.isarTables.clear();
-      await _isar.isarDishes.clear();
-      await _isar.isarOrders.clear();
-      await _isar.isarReservations.clear();
-      await _isar.isarGuestReports.clear();
+      await isar.isarTables.clear();
+      await isar.isarDishs.clear(); // Isar pluralizuje Dish jako Dishs domyślnie
+      await isar.isarOrders.clear();
+      await isar.isarReservations.clear();
+      await isar.isarGuestReports.clear();
+      
       // Queue operations (zachowujemy do synchronizacji po ponownym logowaniu)
-      // await _isar.isarQueuedOperations.clear();
+      // await isar.isarQueuedOperations.clear();
+      
       // Sync & dictionary data
-      await _isar.syncMetadata.clear();
-      await _isar.userEntities.clear();
-      await _isar.ingredientEntities.clear();
-      await _isar.allergenEntities.clear();
-      await _isar.dictionaryEntries.clear();
+      await isar.isarSyncMetadatas.clear();
+      await isar.isarUsers.clear();
+      await isar.isarIngredients.clear();
+      await isar.isarAllergens.clear();
+      await isar.isarDictionaryEntrys.clear();
     });
   }
 
   /// Zamknij bazę danych
   static Future<void> close() async {
-    await _isar.close();
+    await _isar?.close();
+    _isar = null;
   }
 
   /// Sprawdź czy baza jest zainicjalizowana
-  static bool get isInitialized => _isar.isOpen;
+  static bool get isInitialized => _isar?.isOpen ?? false;
 }
 
 /// Metadane synchronizacji - przechowuje informacje o ostatniej synchronizacji
 @collection
-class SyncMetadata {
+class IsarSyncMetadata {
   Id id = Isar.autoIncrement;
 
   @Index(unique: true)
@@ -83,7 +95,7 @@ class SyncMetadata {
 
 /// Użytkownik systemu
 @collection
-class UserEntity {
+class IsarUser {
   Id id = Isar.autoIncrement;
 
   @Index(unique: true)
@@ -100,37 +112,9 @@ class UserEntity {
   late bool isActive;
 }
 
-/// Rezerwacja stolika (dodatkowa encja dla sync)
-@collection
-class ReservationEntity {
-  Id id = Isar.autoIncrement;
-
-  @Index(unique: true)
-  late String token;
-
-  late String tableToken;
-  late String userToken;
-  late String statusToken;
-  late String? waiterToken;
-
-  late DateTime reservationDate;
-  late DateTime startTime;
-  late DateTime endTime;
-  late int guestCount;
-  late double totalPrice;
-
-  late String? notes;
-  late DateTime createdAt;
-  late DateTime updatedAt;
-
-  // Relacje
-  @Backlink(to: 'reservation')
-  final orderItems = IsarLinks<OrderItemEntity>();
-}
-
 /// Składnik dania
 @collection
-class IngredientEntity {
+class IsarIngredient {
   Id id = Isar.autoIncrement;
 
   @Index(unique: true)
@@ -143,7 +127,7 @@ class IngredientEntity {
 
 /// Alergen
 @collection
-class AllergenEntity {
+class IsarAllergen {
   Id id = Isar.autoIncrement;
 
   @Index(unique: true)
@@ -156,7 +140,7 @@ class AllergenEntity {
 
 /// Wpis słownika (statusy, kategorie, itp.)
 @collection
-class DictionaryEntry {
+class IsarDictionaryEntry {
   Id id = Isar.autoIncrement;
 
   @Index(unique: true)

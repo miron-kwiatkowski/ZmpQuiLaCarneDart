@@ -1,33 +1,32 @@
-import '../../domain/entities/order_entity.dart';
-import '../dto/reservation_dto.dart';
+import 'package:quilacarne_waiter/features/waiter_module/domain/entities/order_entity.dart';
+import 'package:quilacarne_waiter/features/waiter_module/data/models/dto/reservation_dto.dart';
 
 /// Data Mapper Pattern - konwersja DTO ↔ Entity dla zamówień
 class OrderMapper {
-  static OrderEntity toEntity(OrderDto dto) {
-    final items = dto.items.map((itemDto) => OrderItemEntity(
-      token: itemDto.token,
-      orderToken: itemDto.orderToken,
-      dishToken: itemDto.dishToken,
-      dishName: itemDto.dishName,
-      quantity: itemDto.quantity,
-      unitPrice: itemDto.unitPrice,
-      totalPrice: itemDto.totalPrice,
-      note: itemDto.note,
-      statusToken: itemDto.statusToken,
-      createdAt: itemDto.createdAt,
-      updatedAt: itemDto.updatedAt,
-    )).toList();
+  static OrderItemEntity itemToEntity(OrderItemDto dto) {
+    return OrderItemEntity(
+      token: dto.token,
+      dishToken: dto.dishToken,
+      dishName: dto.dishName,
+      quantity: dto.quantity,
+      unitPriceInCents: (dto.unitPrice * 100).toInt(),
+      note: dto.note,
+      statusToken: dto.statusToken,
+    );
+  }
 
+  static OrderEntity toEntity(OrderDto dto) {
     return OrderEntity(
       token: dto.token,
       reservationToken: dto.reservationToken,
       tableToken: dto.tableToken,
       statusToken: dto.statusToken,
       waiterToken: dto.waiterToken,
-      totalPrice: dto.totalPrice,
-      items: items,
-      createdAt: dto.createdAt,
+      totalAmountInCents: (dto.totalPrice * 100).toInt(),
+      items: dto.items.map((item) => itemToEntity(item)).toList(),
+      createdAt: dto.createdAt ?? DateTime.now(),
       updatedAt: dto.updatedAt,
+      isOfflineCreated: false,
     );
   }
 
@@ -35,29 +34,30 @@ class OrderMapper {
     return dtos.map((dto) => toEntity(dto)).toList();
   }
 
-  static OrderDto toDto(OrderEntity entity) {
-    final items = entity.items.map((item) => OrderItemDto(
-      token: item.token,
-      orderToken: item.orderToken,
-      dishToken: item.dishToken,
-      dishName: item.dishName,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      totalPrice: item.totalPrice,
-      note: item.note,
-      statusToken: item.statusToken,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-    )).toList();
+  static OrderItemDto itemToDto(OrderItemEntity entity, String orderToken) {
+    return OrderItemDto(
+      token: entity.token ?? '',
+      orderToken: orderToken,
+      dishToken: entity.dishToken,
+      dishName: entity.dishName,
+      quantity: entity.quantity,
+      unitPrice: entity.unitPrice,
+      totalPrice: entity.totalPrice,
+      note: entity.note,
+      statusToken: entity.statusToken,
+    );
+  }
 
+  static OrderDto toDto(OrderEntity entity) {
+    final orderToken = entity.token ?? '';
     return OrderDto(
-      token: entity.token,
-      reservationToken: entity.reservationToken,
+      token: orderToken,
+      reservationToken: entity.reservationToken ?? '',
       tableToken: entity.tableToken,
       statusToken: entity.statusToken,
       waiterToken: entity.waiterToken,
-      totalPrice: entity.totalPrice,
-      items: items,
+      totalPrice: entity.totalAmount,
+      items: entity.items.map((item) => itemToDto(item, orderToken)).toList(),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     );

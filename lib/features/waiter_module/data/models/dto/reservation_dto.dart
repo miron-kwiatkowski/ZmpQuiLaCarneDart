@@ -14,6 +14,7 @@ class ReservationDto {
   final String? notes;
   final double? totalPrice;
   final String? waiterToken;
+  final List<OrderItemDto>? items;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -27,6 +28,7 @@ class ReservationDto {
     this.notes,
     this.totalPrice,
     this.waiterToken,
+    this.items,
     this.createdAt,
     this.updatedAt,
   });

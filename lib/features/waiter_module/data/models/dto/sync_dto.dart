@@ -39,7 +39,7 @@ class SyncModuleInfoDto {
 }
 
 /// DTO dla odpowiedzi paginowanej
-@JsonSerializable()
+@JsonSerializable(genericArgumentFactories: true)
 class PaginatedResponseDto<T> {
   final List<T> items;
   final int pageNumber;
@@ -129,7 +129,7 @@ class AllergenDictionaryItemDto {
     required this.namePl,
     required this.nameEn,
     this.shortName,
-    this.colorCode,
+    required this.colorCode,
   });
 
   factory AllergenDictionaryItemDto.fromJson(Map<String, dynamic> json) => 

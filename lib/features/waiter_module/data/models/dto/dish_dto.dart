@@ -70,7 +70,7 @@ class AllergenDto {
     required this.token,
     required this.name,
     this.shortName,
-    this.colorCode,
+    required this.colorCode,
   });
 
   factory AllergenDto.fromJson(Map<String, dynamic> json) => 

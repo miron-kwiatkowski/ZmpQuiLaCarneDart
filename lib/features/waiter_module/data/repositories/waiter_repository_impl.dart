@@ -1,269 +1,113 @@
 import 'package:dartz/dartz.dart';
+import '../../../../core/error/failure.dart';
+import '../../../../core/network/offline_queue_manager.dart';
+import '../../domain/entities/table_entity.dart';
+import '../../domain/entities/dish_entity.dart';
+import '../../domain/entities/order_entity.dart';
+import '../../domain/entities/reservation_entity.dart';
+import '../../domain/entities/guest_report_entity.dart';
+import '../../domain/repositories/waiter_repository.dart';
+import '../datasources/waiter_remote_datasource.dart';
+import '../datasources/waiter_local_datasource.dart';
+import '../models/dto/table_dto.dart';
+import '../models/dto/dish_dto.dart';
+import '../models/dto/reservation_dto.dart';
 
 /// Implementacja repozytorium kelnera (Data Layer)
-/// 
-/// Łączy zdalne źródło danych (API) z lokalnym cache i kolejką offline.
-/// Realizuje strategię Offline-First z automatyczną synchronizacją.
 class WaiterRepositoryImpl implements WaiterRepository {
   final WaiterRemoteDataSource _remoteDataSource;
-  // final WaiterLocalDataSource _localDataSource;
+  final WaiterLocalDataSource _localDataSource;
   final OfflineQueueManager _queueManager;
   final NetworkInfo _networkInfo;
-  
+
   WaiterRepositoryImpl({
     required WaiterRemoteDataSource remoteDataSource,
-    // required WaiterLocalDataSource localDataSource,
+    required WaiterLocalDataSource localDataSource,
     required OfflineQueueManager queueManager,
     required NetworkInfo networkInfo,
   })  : _remoteDataSource = remoteDataSource,
-        // _localDataSource = localDataSource,
+        _localDataSource = localDataSource,
         _queueManager = queueManager,
         _networkInfo = networkInfo;
-  
+
   @override
-  Future<List<TableEntity>> getTables() async {
-    try {
-      // Strategia: najpierw spróbuj z API, fallback do cache
-      final isOnline = await _networkInfo.isConnected;
-      
-      if (isOnline) {
-        // Pobierz z API i zapisz w cache
-        final tableModels = await _remoteDataSource.getTables();
-        final tables = tableModels.map((m) => m.toEntity()).toList();
-        
-        // TODO: Save to local cache
-        // await _localDataSource.cacheTables(tables);
-        
-        return tables;
-      } else {
-        // Brak internetu - zwróć z cache
-        // return await _localDataSource.getCachedTables();
-        throw const ConnectionFailure(message: 'Brak połączenia z internetem');
-      }
-    } on ServerException catch (e) {
-      // Spróbuj z cache jeśli API zawiedzie
-      // final cachedTables = await _localDataSource.getCachedTables();
-      // if (cachedTables.isNotEmpty) {
-      //   return cachedTables;
-      // }
-      throw ServerFailure(message: e.message);
-    }
-  }
-  
-  @override
-  Future<TableEntity?> getTableByToken(String token) async {
-    // TODO: Implement get table by token
-    throw UnimplementedError();
-  }
-  
-  @override
-  Future<void> markTableForCleaning(String tableToken) async {
+  Future<Either<Failure, List<TableEntity>>> getTables({String? filter}) async {
     try {
       final isOnline = await _networkInfo.isConnected;
-      
       if (isOnline) {
-        // Online - wyślij od razu do API
-        await _remoteDataSource.markTableCleaning(tableToken);
+        final tableDtos = await _remoteDataSource.getTables();
+        final entities = tableDtos.map((m) => m.toEntity()).toList();
+        await _localDataSource.cacheTables(entities);
+        return Right(entities);
       } else {
-        // Offline - dodaj do kolejki
-        final operation = QueueOperationFactory.createMarkTableCleaning(
-          tableToken: tableToken,
-        );
-        await _queueManager.enqueue(operation);
+        final cachedTables = await _localDataSource.getTables();
+        return Right(cachedTables);
       }
-    } on ServerException catch (e) {
-      // Błąd API - dodaj do kolejki mimo wszystko
-      final operation = QueueOperationFactory.createMarkTableCleaning(
-        tableToken: tableToken,
-      );
-      await _queueManager.enqueue(operation);
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
     }
   }
-  
+
   @override
-  Future<void> markTableOutOfService(String tableToken) async {
-    try {
-      final isOnline = await _networkInfo.isConnected;
-      
-      if (isOnline) {
-        await _remoteDataSource.markTableOutOfService(tableToken);
-      } else {
-        // TODO: Add to queue when factory method is available
-        throw const ConnectionFailure(message: 'Offline operation not implemented yet');
-      }
-    } on ServerException catch (e) {
-      throw ServerFailure(message: e.message);
-    }
-  }
-  
-  @override
-  Future<void> markTableAvailable(String tableToken) async {
-    try {
-      final isOnline = await _networkInfo.isConnected;
-      
-      if (isOnline) {
-        await _remoteDataSource.markTableAvailable(tableToken);
-      } else {
-        // TODO: Add to queue
-        throw const ConnectionFailure(message: 'Offline operation not implemented yet');
-      }
-    } on ServerException catch (e) {
-      throw ServerFailure(message: e.message);
-    }
-  }
-  
-  @override
-  Future<void> assignWaiterToReservation(String reservationToken) async {
-    try {
-      final isOnline = await _networkInfo.isConnected;
-      
-      if (isOnline) {
-        await _remoteDataSource.assignWaiterToReservation(reservationToken);
-      } else {
-        // TODO: Add to queue
-        throw const ConnectionFailure(message: 'Offline operation not implemented yet');
-      }
-    } on ServerException catch (e) {
-      throw ServerFailure(message: e.message);
-    }
-  }
-  
-  @override
-  Future<void> markReservationAsAbsent(String reservationToken) async {
-    try {
-      final isOnline = await _networkInfo.isConnected;
-      
-      if (isOnline) {
-        await _remoteDataSource.markReservationAbsent(reservationToken);
-      } else {
-        // TODO: Add to queue
-        throw const ConnectionFailure(message: 'Offline operation not implemented yet');
-      }
-    } on ServerException catch (e) {
-      throw ServerFailure(message: e.message);
-    }
-  }
-  
-  @override
-  Future<List<DishEntity>> getDishes({List<String>? excludedAllergens}) async {
-    try {
-      final isOnline = await _networkInfo.isConnected;
-      
-      if (isOnline) {
-        final dishModels = await _remoteDataSource.getDishes(
-          excludedAllergens: excludedAllergens,
-        );
-        final dishes = dishModels.map((m) => m.toEntity()).toList();
-        
-        // TODO: Cache dishes
-        // await _localDataSource.cacheDishes(dishes);
-        
-        return dishes;
-      } else {
-        // Return from cache
-        // return await _localDataSource.getCachedDishes(excludedAllergens: excludedAllergens);
-        throw const ConnectionFailure(message: 'Brak połączenia z internetem');
-      }
-    } on ServerException catch (e) {
-      throw ServerFailure(message: e.message);
-    }
-  }
-  
-  @override
-  Future<DishEntity?> getDishByToken(String token) async {
-    // TODO: Implement get dish by token
-    throw UnimplementedError();
-  }
-  
-  @override
-  Future<void> createOrUpdateOrder(OrderEntity order) async {
-    // Ta metoda jest używana dla lokalnych operacji na zamówieniu
-    // W przypadku offline, zamówienie jest zapisywane lokalnie
-    
-    // TODO: Save order to local database
-    // await _localDataSource.saveOrder(order);
-    
-    // Jeśli mamy połączenie i zamówienie ma rezerwację, wyślij do API
-    final isOnline = await _networkInfo.isConnected;
-    
-    if (isOnline && order.reservationToken != null) {
-      // Konwertuj pozycje zamówienia do formatu API
-      final items = order.items.map((item) => {
-        'dishToken': item.dishToken,
-        'quantity': item.quantity,
-        'note': item.note,
-      }).toList();
-      
-      try {
-        await _remoteDataSource.addItemsToReservation(
-          reservationToken: order.reservationToken!,
-          items: items,
-        );
-      } on ServerException catch (e) {
-        // Błąd API - dodaj do kolejki
-        final operation = QueueOperationFactory.createAddItemsToReservation(
-          reservationToken: order.reservationToken!,
-          items: items,
-        );
-        await _queueManager.enqueue(operation);
-      }
-    } else if (!isOnline && order.reservationToken != null) {
-      // Offline - dodaj do kolejki
-      final items = order.items.map((item) => {
-        'dishToken': item.dishToken,
-        'quantity': item.quantity,
-        'note': item.note,
-      }).toList();
-      
-      final operation = QueueOperationFactory.createAddItemsToReservation(
-        reservationToken: order.reservationToken!,
-        items: items,
-      );
-      await _queueManager.enqueue(operation);
-    }
-    
-    // W obu przypadkach zamówienie jest zapisane lokalnie
-  }
-  
-  @override
-  Future<void> addItemsToReservation({
-    required String reservationToken,
-    required List<OrderItemInput> items,
+  Future<Either<Failure, bool>> changeTableStatus({
+    required String tableToken,
+    required String newStatus,
   }) async {
-    final apiItems = items.map((item) => {
-      'dishToken': item.dishToken,
-      'quantity': item.quantity,
-      'note': item.note,
-    }).toList();
-    
     try {
       final isOnline = await _networkInfo.isConnected;
-      
+      if (isOnline) {
+        if (newStatus == 'CLEANING') {
+          await _remoteDataSource.markTableCleaning(tableToken);
+        } else if (newStatus == 'OUT_OF_SERVICE') {
+          await _remoteDataSource.markTableOutOfService(tableToken);
+        } else if (newStatus == 'AVAILABLE') {
+          await _remoteDataSource.markTableAvailable(tableToken);
+        }
+        return const Right(true);
+      } else {
+        final operation = QueueOperationFactory.createMarkTableCleaning(tableToken: tableToken);
+        await _queueManager.enqueue(operation);
+        return const Right(true);
+      }
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, bool>> addItemsToReservation({
+    required String reservationToken,
+    required List<OrderItemToAdd> items,
+  }) async {
+    final apiItems = items.map((i) => {
+      'dishToken': i.dishToken,
+      'quantity': i.quantity,
+      'note': i.note,
+    }).toList();
+
+    try {
+      final isOnline = await _networkInfo.isConnected;
       if (isOnline) {
         await _remoteDataSource.addItemsToReservation(
           reservationToken: reservationToken,
           items: apiItems,
         );
+        return const Right(true);
       } else {
-        // Offline - dodaj do kolejki
         final operation = QueueOperationFactory.createAddItemsToReservation(
           reservationToken: reservationToken,
           items: apiItems,
         );
         await _queueManager.enqueue(operation);
+        return const Right(true);
       }
-    } on ServerException catch (e) {
-      // Błąd API - dodaj do kolejki
-      final operation = QueueOperationFactory.createAddItemsToReservation(
-        reservationToken: reservationToken,
-        items: apiItems,
-      );
-      await _queueManager.enqueue(operation);
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
     }
   }
-  
+
   @override
-  Future<void> removeItemFromReservation({
+  Future<Either<Failure, bool>> removeItemFromReservation({
     required String reservationToken,
     required String dishToken,
     required int quantity,
@@ -271,7 +115,6 @@ class WaiterRepositoryImpl implements WaiterRepository {
   }) async {
     try {
       final isOnline = await _networkInfo.isConnected;
-      
       if (isOnline) {
         await _remoteDataSource.removeItemFromReservation(
           reservationToken: reservationToken,
@@ -279,8 +122,8 @@ class WaiterRepositoryImpl implements WaiterRepository {
           quantity: quantity,
           note: note,
         );
+        return const Right(true);
       } else {
-        // Offline - dodaj do kolejki
         final operation = QueueOperationFactory.createRemoveItemFromReservation(
           reservationToken: reservationToken,
           dishToken: dishToken,
@@ -288,121 +131,178 @@ class WaiterRepositoryImpl implements WaiterRepository {
           note: note,
         );
         await _queueManager.enqueue(operation);
+        return const Right(true);
       }
-    } on ServerException catch (e) {
-      // Błąd API - dodaj do kolejki
-      final operation = QueueOperationFactory.createRemoveItemFromReservation(
-        reservationToken: reservationToken,
-        dishToken: dishToken,
-        quantity: quantity,
-        note: note,
-      );
-      await _queueManager.enqueue(operation);
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
     }
   }
-  
+
   @override
-  Future<ReservationEntity?> getReservationByToken(String token) async {
+  Future<Either<Failure, bool>> assignWaiter({required String reservationToken}) async {
     try {
       final isOnline = await _networkInfo.isConnected;
-      
       if (isOnline) {
-        final model = await _remoteDataSource.getReservationByToken(token);
-        return model.toEntity();
+        await _remoteDataSource.assignWaiterToReservation(reservationToken);
+        return const Right(true);
       } else {
-        // TODO: Get from cache
-        // return await _localDataSource.getCachedReservation(token);
-        throw const ConnectionFailure(message: 'Brak połączenia z internetem');
+        // TODO: Add to queue
+        return const Left(ConnectionFailure(message: 'Offline operation not implemented'));
       }
-    } on ServerException catch (e) {
-      throw ServerFailure(message: e.message);
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
     }
   }
-  
+
   @override
-  Future<List<ReservationEntity>> getReservationsHistory({
-    DateTime? fromDate,
-    DateTime? toDate,
-    String? statusToken,
-    int page = 1,
-    int size = 10,
-  }) async {
-    // TODO: Implement reservations history
-    throw UnimplementedError();
+  Future<Either<Failure, bool>> markAbsent({required String reservationToken}) async {
+    return await markReservationAbsent(reservationToken);
   }
-  
+
   @override
-  Future<void> submitGuestReport(GuestReportEntity report) async {
+  Future<Either<Failure, bool>> markReservationAbsent(String reservationToken) async {
     try {
       final isOnline = await _networkInfo.isConnected;
-      
+      if (isOnline) {
+        await _remoteDataSource.markReservationAbsent(reservationToken);
+        return const Right(true);
+      } else {
+        // TODO: Add proper offline operation for markReservationAbsent
+        return const Left(ConnectionFailure(message: 'Offline operation not implemented for markReservationAbsent'));
+      }
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<GuestReportEntity>>> getGuestReports() async {
+    try {
+      final entities = await _localDataSource.getGuestReports();
+      return Right(entities);
+    } catch (e) {
+      return Left(CacheFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, bool>> createGuestReport({
+    required String clientToken,
+    required String reason,
+  }) async {
+    try {
+      final isOnline = await _networkInfo.isConnected;
       if (isOnline) {
         await _remoteDataSource.createGuestReport(
-          clientToken: report.clientToken,
-          reason: report.reason,
+          clientToken: clientToken,
+          reason: reason,
         );
+        return const Right(true);
       } else {
-        // Offline - dodaj do kolejki
         final operation = QueueOperationFactory.createGuestReport(
-          clientToken: report.clientToken,
-          reason: report.reason,
+          clientToken: clientToken,
+          reason: reason,
         );
         await _queueManager.enqueue(operation);
+        return const Right(true);
       }
-    } on ServerException catch (e) {
-      // Błąd API - dodaj do kolejki
-      final operation = QueueOperationFactory.createGuestReport(
-        clientToken: report.clientToken,
-        reason: report.reason,
-      );
-      await _queueManager.enqueue(operation);
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
     }
   }
-  
+
   @override
-  Future<List<GuestReportEntity>> getGuestReports({int page = 1}) async {
-    // TODO: Implement get guest reports
-    throw UnimplementedError();
+  Future<Either<Failure, List<DishEntity>>> getDishes({List<String>? excludedAllergens}) async {
+    try {
+      final isOnline = await _networkInfo.isConnected;
+      if (isOnline) {
+        final models = await _remoteDataSource.getDishes(excludedAllergens: excludedAllergens);
+        final entities = models.map((m) => m.toEntity()).toList();
+        await _localDataSource.cacheDishes(entities);
+        return Right(entities);
+      } else {
+        final cached = await _localDataSource.getDishes();
+        return Right(cached);
+      }
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, ReservationEntity>> getReservationDetails({
+    required String reservationToken,
+  }) async {
+    try {
+      final isOnline = await _networkInfo.isConnected;
+      if (isOnline) {
+        final dto = await _remoteDataSource.getReservationByToken(reservationToken);
+        final entity = dto.toEntity();
+        await _localDataSource.cacheReservation(entity);
+        return Right(entity);
+      } else {
+        final cached = await _localDataSource.getReservationByToken(reservationToken);
+        if (cached != null) {
+          return Right(cached);
+        }
+        return const Left(CacheFailure(message: 'Reservation not found in cache'));
+      }
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
   }
 }
 
-// Extension methods for converting models to entities
-// These would normally be in separate model files
-extension TableModelX on TableModel {
-  TableEntity toEntity() {
-    // TODO: Implement actual conversion
-    return const TableEntity(
-      token: '',
-      statusToken: '',
-      tableNumber: '',
-    );
-  }
+// Extension methods to handle conversion from DTOs to Entities
+extension TableDtoX on TableDto {
+  TableEntity toEntity() => TableEntity(
+        token: token,
+        statusToken: statusToken,
+        seats: capacity,
+        tableNumber: tableNumber?.toString() ?? name,
+        locationDescription: location,
+      );
 }
 
-extension DishModelX on DishModel {
-  DishEntity toEntity() {
-    // TODO: Implement actual conversion
-    return const DishEntity(
-      token: '',
-      name: '',
-      description: '',
-      priceInCents: 0,
-      categoryToken: '',
-      ingredientTokens: [],
-      allergenTokens: [],
-      isAvailable: true,
-    );
-  }
+extension DishDtoX on DishDto {
+  DishEntity toEntity() => DishEntity(
+        token: token,
+        name: name,
+        description: description ?? '',
+        priceInCents: (price * 100).toInt(),
+        categoryToken: categoryToken,
+        ingredientTokens: ingredientTokens,
+        allergenTokens: allergenTokens,
+        isAvailable: isAvailable,
+        imageUrl: null, 
+      );
 }
 
-extension ReservationModelX on ReservationModel {
-  ReservationEntity toEntity() {
-    // TODO: Implement actual conversion
-    return const ReservationEntity(
-      token: '',
-      tableToken: '',
-      statusToken: '',
-      reservationTime: DateTime.now(),
-    );
-  }
+extension ReservationDtoX on ReservationDto {
+  ReservationEntity toEntity() => ReservationEntity(
+        token: token,
+        tableToken: tableToken,
+        userToken: userToken,
+        statusToken: statusToken,
+        waiterToken: waiterToken,
+        reservationDate: reservationDate,
+        startTime: reservationDate, 
+        endTime: reservationDate.add(const Duration(hours: 2)), 
+        guestCount: guestCount,
+        totalPrice: totalPrice ?? 0,
+        notes: notes,
+        orderItems: items?.map((i) => i.toEntity()).toList() ?? const [],
+      );
+}
+
+extension OrderItemDtoX on OrderItemDto {
+  OrderItemEntity toEntity() => OrderItemEntity(
+        token: token,
+        dishToken: dishToken,
+        dishName: dishName,
+        quantity: quantity,
+        note: note,
+        unitPriceInCents: (unitPrice * 100).toInt(),
+        statusToken: statusToken,
+      );
 }

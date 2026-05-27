@@ -1,7 +1,7 @@
 part of 'reports_cubit_export.dart';
 
 /// Cubit do zarządzania zgłoszeniami gości
-/// 
+///
 /// Wzorzec: Cubit Pattern (flutter_bloc)
 /// Dlaczego: Zarządzanie stanem zgłoszeń z obsługą offline
 class ReportsCubit extends Cubit<ReportsState> {
@@ -18,9 +18,11 @@ class ReportsCubit extends Cubit<ReportsState> {
 
     // Walidacja długości powodu (10-500 znaków zgodnie z API)
     if (reason.length < 10 || reason.length > 500) {
-      emit(ReportsError(const ValidationFailure(
-        message: 'Powód musi mieć od 10 do 500 znaków',
-      )));
+      emit(const ReportsError(
+        ValidationFailure(
+          message: 'Powód musi mieć od 10 do 500 znaków',
+        ),
+      ));
       return;
     }
 

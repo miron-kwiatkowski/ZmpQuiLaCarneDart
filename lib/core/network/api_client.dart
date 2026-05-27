@@ -50,15 +50,15 @@ class ApiClient {
 
   /// Sprawdza dostępność połączenia internetowego
   Future<bool> get isConnected async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    return !connectivityResult.contains(ConnectivityResult.none);
+    final result = await Connectivity().checkConnectivity();
+    return result.any((status) => status != ConnectivityResult.none);
   }
 
   /// Stream zmian statusu połączenia
   Stream<bool> get onConnectivityChanged {
     return Connectivity()
         .onConnectivityChanged
-        .map((result) => !result.contains(ConnectivityResult.none));
+        .map((results) => results.any((status) => status != ConnectivityResult.none));
   }
 
   /// GET request

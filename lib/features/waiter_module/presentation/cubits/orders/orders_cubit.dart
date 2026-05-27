@@ -1,7 +1,7 @@
 part of 'orders_cubit_export.dart';
 
 /// Cubit do zarządzania stanem zamówień
-/// 
+///
 /// Wzorzec: Cubit Pattern (flutter_bloc)
 /// Dlaczego: Zarządzanie stanem zamówień z obsługą operacji offline
 class OrdersCubit extends Cubit<OrdersState> {

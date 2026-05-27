@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:qui_la_carne_app/core/injection_container.dart';
-import '../../domain/entities/guest_report_entity.dart';
-import '../../domain/usecases/report_usecases.dart';
-import '../cubits/reports/reports_cubit.dart';
+import '../cubits/reports/reports_cubit_export.dart';
 
 /// Strona formularza zgłoszenia gościa
 /// QlC14: Kelner może zgłaszać gości (działa offline/online)
@@ -71,7 +68,7 @@ class _GuestReportFormPageState extends State<GuestReportFormPage> {
                 const Center(child: CircularProgressIndicator())
               else
                 ElevatedButton.icon(
-                  icon: const Icon(Icons.submit),
+                  icon: const Icon(Icons.send),
                   label: const Text('Wyślij Zgłoszenie'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -83,7 +80,7 @@ class _GuestReportFormPageState extends State<GuestReportFormPage> {
               
               BlocListener<ReportsCubit, ReportsState>(
                 listener: (context, state) {
-                  if (state is ReportSubmitted) {
+                  if (state is ReportCreated) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Zgłoszenie wysłane pomyślnie!'),
@@ -94,7 +91,7 @@ class _GuestReportFormPageState extends State<GuestReportFormPage> {
                   } else if (state is ReportsError) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Błąd: ${state.message}'),
+                        content: Text('Błąd: ${state.failure.message}'),
                         backgroundColor: Colors.red,
                       ),
                     );

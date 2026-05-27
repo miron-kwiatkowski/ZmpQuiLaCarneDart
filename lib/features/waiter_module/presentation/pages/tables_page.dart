@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:quilacarne_waiter/core/di/injection_container.dart';
+import 'package:quilacarne_waiter/core/network/api_client.dart';
+import 'package:quilacarne_waiter/features/waiter_module/domain/entities/table_entity.dart';
 import '../cubits/tables/tables_cubit_export.dart';
 
 /// Strona główna kelnera - lista stolików
@@ -12,161 +15,181 @@ class TablesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Stoliki'),
-        actions: [
-          // Przycisk odświeżania
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              context.read<TablesCubit>().refresh();
-            },
-          ),
-          
-          // Przełącznik trybu offline/online
-          StreamBuilder<bool>(
-            stream: context.read<TablesCubit>().stream.map((_) => false), // TODO: podłączyć ApiClient.isConnected
-            builder: (context, snapshot) {
-              final isConnected = snapshot.data ?? true;
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isConnected ? Colors.green : Colors.orange,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isConnected ? Icons.wifi : Icons.wifi_off,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isConnected ? 'Online' : 'Offline',
-                      style: const TextStyle(
+    return BlocListener<TablesCubit, TablesState>(
+      listener: (context, state) {
+        if (state is TableStatusUpdated) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Zmieniono status stolika ${state.tableToken} na ${state.newStatus}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        if (state is TablesError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Błąd: ${state.failure.message}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Stoliki'),
+          actions: [
+            // Przycisk odświeżania
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                context.read<TablesCubit>().refresh();
+              },
+            ),
+            
+            // Przełącznik trybu offline/online
+            StreamBuilder<bool>(
+              stream: sl<ApiClient>().onConnectivityChanged,
+              initialData: true,
+              builder: (context, snapshot) {
+                final isConnected = snapshot.data ?? true;
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isConnected ? Colors.green : Colors.orange,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isConnected ? Icons.wifi : Icons.wifi_off,
+                        size: 16,
                         color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
                       ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Filtry statusów stolików
-          _buildFilterBar(context),
-          
-          // Lista stolików
-          Expanded(
-            child: BlocBuilder<TablesCubit, TablesState>(
-              builder: (context, state) {
-                if (state is TablesLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                
-                if (state is TablesError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Błąd: ${state.failure.message}',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                          textAlign: TextAlign.center,
+                      const SizedBox(width: 4),
+                      Text(
+                        isConnected ? 'Online' : 'Offline',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            context.read<TablesCubit>().refresh();
-                          },
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Odśwież'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                
-                if (state is TablesLoaded) {
-                  if (state.tables.isEmpty) {
-                    return const Center(
-                      child: Text('Brak stolików do wyświetlenia'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: Column(
+          children: [
+            // Filtry statusów stolików
+            _buildFilterBar(context),
+            
+            // Lista stolików
+            Expanded(
+              child: BlocBuilder<TablesCubit, TablesState>(
+                builder: (context, state) {
+                  if (state is TablesLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  
+                  if (state is TablesError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Błąd: ${state.failure.message}',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              context.read<TablesCubit>().refresh();
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Odśwież'),
+                          ),
+                        ],
+                      ),
                     );
                   }
                   
-                  return GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 1.2,
-                    ),
-                    itemCount: state.tables.length,
-                    itemBuilder: (context, index) {
-                      final table = state.tables[index];
-                      return _TableCard(table: table);
-                    },
-                  );
-                }
-                
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        ],
-      ),
-      // Nasłuchiwanie na zdarzenia z Cubit
-      blocListener: BlocListener<TablesCubit, TablesState>(
-        listener: (context, state) {
-          if (state is TableStatusUpdated) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Zmieniono status stolika ${state.tableToken} na ${state.newStatus}'),
-                backgroundColor: Colors.green,
+                  if (state is TablesLoaded) {
+                    var tables = state.tables;
+                    
+                    // Aplikuj filtrowanie w UI jeśli Cubit sam tego nie robi w streamie
+                    if (state.filter != null) {
+                      final filter = state.filter!.toUpperCase();
+                      tables = tables.where((t) => t.statusToken.toUpperCase() == filter).toList();
+                    }
+
+                    if (tables.isEmpty) {
+                      return const Center(
+                        child: Text('Brak stolików do wyświetlenia'),
+                      );
+                    }
+                    
+                    return GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 1.2,
+                      ),
+                      itemCount: tables.length,
+                      itemBuilder: (context, index) {
+                        final table = tables[index];
+                        return _TableCard(table: table);
+                      },
+                    );
+                  }
+                  
+                  return const SizedBox.shrink();
+                },
               ),
-            );
-          }
-        },
-        child: const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   /// Pasek filtrów
   Widget _buildFilterBar(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            const SizedBox(width: 16),
-            _FilterChip(label: 'Wszystkie', value: null),
-            const SizedBox(width: 8),
-            _FilterChip(label: 'Wolne', value: 'available'),
-            const SizedBox(width: 8),
-            _FilterChip(label: 'Zajęte', value: 'occupied'),
-            const SizedBox(width: 8),
-            _FilterChip(label: 'Rezerwacje', value: 'reserved'),
-            const SizedBox(width: 8),
-            _FilterChip(label: 'Do sprzątania', value: 'cleaning'),
-            const SizedBox(width: 8),
-            _FilterChip(label: 'Uszkodzone', value: 'out_of_service'),
-            const SizedBox(width: 16),
-          ],
-        ),
-      ),
+    return BlocBuilder<TablesCubit, TablesState>(
+      builder: (context, state) {
+        final currentFilter = state is TablesLoaded ? state.filter : null;
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                _FilterChip(label: 'Wszystkie', value: null, isSelected: currentFilter == null),
+                const SizedBox(width: 8),
+                _FilterChip(label: 'Wolne', value: 'available', isSelected: currentFilter?.toLowerCase() == 'available'),
+                const SizedBox(width: 8),
+                _FilterChip(label: 'Zajęte', value: 'occupied', isSelected: currentFilter?.toLowerCase() == 'occupied'),
+                const SizedBox(width: 8),
+                _FilterChip(label: 'Rezerwacje', value: 'reserved', isSelected: currentFilter?.toLowerCase() == 'reserved'),
+                const SizedBox(width: 8),
+                _FilterChip(label: 'Do sprzątania', value: 'cleaning', isSelected: currentFilter?.toLowerCase() == 'cleaning'),
+                const SizedBox(width: 8),
+                _FilterChip(label: 'Uszkodzone', value: 'out_of_service', isSelected: currentFilter?.toLowerCase() == 'out_of_service'),
+                const SizedBox(width: 16),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -175,8 +198,9 @@ class TablesPage extends StatelessWidget {
 class _FilterChip extends StatelessWidget {
   final String label;
   final String? value;
+  final bool isSelected;
 
-  const _FilterChip({required this.label, this.value});
+  const _FilterChip({required this.label, this.value, required this.isSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -185,14 +209,14 @@ class _FilterChip extends StatelessWidget {
     return FilterChip(
       label: Text(label),
       onSelected: (_) => cubit.filterTables(value),
-      selected: false, // TODO: porównać z aktualnym filtrem w stanie
+      selected: isSelected,
     );
   }
 }
 
 /// Karta pojedynczego stolika
 class _TableCard extends StatelessWidget {
-  final dynamic table; // TableEntity
+  final TableEntity table;
 
   const _TableCard({required this.table});
 
@@ -201,7 +225,7 @@ class _TableCard extends StatelessWidget {
     Color statusColor;
     IconData statusIcon;
     
-    switch (table.statusToken) {
+    switch (table.statusToken.toUpperCase()) {
       case 'AVAILABLE':
         statusColor = Colors.green;
         statusIcon = Icons.check_circle;
@@ -228,9 +252,9 @@ class _TableCard extends StatelessWidget {
     }
 
     return Card(
-      color: statusColor.withOpacity(0.1),
+      color: statusColor.withValues(alpha: 0.1),
       child: InkWell(
-        onTap: () => _showTableDetails(context),
+        onTap: () => _handleTableTap(context),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -275,7 +299,7 @@ class _TableCard extends StatelessWidget {
   }
 
   String _getStatusName(String statusToken) {
-    switch (statusToken) {
+    switch (statusToken.toUpperCase()) {
       case 'AVAILABLE':
         return 'Wolny';
       case 'OCCUPIED':
@@ -291,8 +315,11 @@ class _TableCard extends StatelessWidget {
     }
   }
 
+  void _handleTableTap(BuildContext context) {
+     _showTableDetails(context);
+  }
+
   void _showTableDetails(BuildContext context) {
-    // TODO: Nawigacja do szczegółów stolika
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
@@ -305,8 +332,56 @@ class _TableCard extends StatelessWidget {
               'Stolik ${table.tableNumber}',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
-            const SizedBox(height: 16),
-            // TODO: Dodaj akcje dla stolika
+            const SizedBox(height: 8),
+            Text('Status: ${_getStatusName(table.statusToken)}'),
+            if (table.seats != null) Text('Miejsca: ${table.seats}'),
+            const SizedBox(height: 24),
+            
+            if (table.isReserved || table.isOccupied)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // TODO: W prawdziwej aplikacji potrzebujemy tokenu rezerwacji
+                    // Na potrzeby demo/naprawy nawigacji:
+                    Navigator.pushNamed(
+                      context, 
+                      '/reservation_detail',
+                      arguments: {'token': 'DEMO-TOKEN-123'} 
+                    );
+                  },
+                  child: const Text('Szczegóły rezerwacji'),
+                ),
+              ),
+              
+            if (table.isAvailable)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    // Otwórz listę dań aby zacząć nowe zamówienie
+                    Navigator.pushNamed(context, '/dishes');
+                  },
+                  child: const Text('Otwórz zamówienie'),
+                ),
+              ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                   // Logic to change status (e.g., to CLEANING or OUT_OF_SERVICE)
+                  Navigator.pop(context);
+                  context.read<TablesCubit>().changeTableStatus(
+                    tableToken: table.token, 
+                    newStatus: table.requiresCleaning ? 'AVAILABLE' : 'CLEANING'
+                  );
+                },
+                child: Text(table.requiresCleaning ? 'Oznacz jako posprzątany' : 'Zmień status'),
+              ),
+            ),
           ],
         ),
       ),

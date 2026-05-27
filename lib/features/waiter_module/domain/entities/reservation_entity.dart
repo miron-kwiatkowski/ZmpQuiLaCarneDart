@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'order_entity.dart';
 
 /// Encja domenowa rezerwacji (Domain Layer)
 class ReservationEntity extends Equatable {

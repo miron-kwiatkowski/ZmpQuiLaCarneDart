@@ -1,4 +1,4 @@
-import 'package:dartz/dartz.dart';
+import 'package:equatable/equatable.dart';
 
 /// Abstrakcyjna klasa dla błędów (Domain Layer)
 /// 

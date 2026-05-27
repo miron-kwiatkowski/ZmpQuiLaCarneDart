@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/di/injection_container.dart' as di;
-import 'core/database/local_database.dart';
 import 'features/waiter_module/presentation/cubits/tables/tables_cubit_export.dart';
 import 'features/waiter_module/presentation/cubits/orders/orders_cubit_export.dart';
 import 'features/waiter_module/presentation/cubits/reports/reports_cubit_export.dart';
+import 'features/waiter_module/presentation/cubits/dishes/dishes_cubit.dart';
 import 'features/waiter_module/presentation/pages/tables_page.dart';
+import 'features/waiter_module/presentation/pages/dishes_page.dart';
+import 'features/waiter_module/presentation/pages/reservation_detail_page.dart';
 
 /// Główny punkt wejścia aplikacji QuiLaCarne Waiter
 /// 
@@ -16,11 +18,8 @@ void main() async {
   // Zapewnij że Flutter bindings są zainicjalizowane
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Zainicjalizuj bazę danych
+  // Zainicjalizuj bazę danych i zależności
   await di.initDatabase();
-  
-  // Zarejestruj wszystkie zależności
-  await di.initDependencies();
   
   // Uruchom aplikację
   runApp(const QuiLaCarneApp());
@@ -48,6 +47,11 @@ class QuiLaCarneApp extends StatelessWidget {
         BlocProvider<ReportsCubit>(
           create: (_) => di.sl<ReportsCubit>(),
         ),
+
+        // DishesCubit - lista dań
+        BlocProvider<DishesCubit>(
+          create: (_) => di.sl<DishesCubit>(),
+        ),
       ],
       child: MaterialApp(
         title: 'QuiLaCarne Waiter',
@@ -62,7 +66,7 @@ class QuiLaCarneApp extends StatelessWidget {
             centerTitle: true,
             elevation: 2,
           ),
-          cardTheme: CardTheme(
+          cardTheme: CardThemeData(
             elevation: 2,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -77,7 +81,22 @@ class QuiLaCarneApp extends StatelessWidget {
           useMaterial3: true,
         ),
         themeMode: ThemeMode.system,
-        home: const TablesPage(),
+        initialRoute: '/',
+        routes: {
+          '/': (context) => const TablesPage(),
+          '/dishes': (context) => const DishesPage(),
+        },
+        onGenerateRoute: (settings) {
+          if (settings.name == '/reservation_detail') {
+            final args = settings.arguments as Map<String, dynamic>;
+            return MaterialPageRoute(
+              builder: (context) => ReservationDetailPage(
+                reservationToken: args['token'] as String,
+              ),
+            );
+          }
+          return null;
+        },
       ),
     );
   }

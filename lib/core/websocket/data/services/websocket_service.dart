@@ -3,9 +3,9 @@ import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'dart:async';
 import 'dart:convert';
 
-import '../../../core/config/api_config.dart';
-import '../../../core/network/auth_token_provider.dart';
-import '../domain/models/websocket_event.dart';
+import 'package:quilacarne_waiter/core/config/api_config.dart';
+import 'package:quilacarne_waiter/core/network/auth_token_provider.dart';
+import 'package:quilacarne_waiter/core/websocket/domain/models/websocket_event.dart';
 
 /// WebSocket service configuration
 @lazySingleton
@@ -34,6 +34,8 @@ class WebSocketService {
   StompClient? _client;
   WSConnectionState _connectionState = WSConnectionState.disconnected;
   final Map<String, List<dynamic>> _subscriptions = {};
+  final Map<String, String> _authHeaders = {};
+  
   final StreamController<WSConnectionState> _connectionStateController = 
       StreamController<WSConnectionState>.broadcast();
   final StreamController<WebSocketEvent> _eventController = 
@@ -76,13 +78,16 @@ class WebSocketService {
           onStompError: _onStompError,
           onWebSocketError: _onWebSocketError,
           onDisconnect: _onDisconnect,
-          onReconnect: _onReconnect,
           reconnectDelay: config.reconnectDelay,
           heartbeatIncoming: config.heartbeat,
           heartbeatOutgoing: config.heartbeat,
+          stompConnectHeaders: _authHeaders,
+          webSocketConnectHeaders: _authHeaders,
           beforeConnect: () async {
             final newToken = await authTokenProvider.getAccessToken();
-            return {'Authorization': 'Bearer $newToken'};
+            if (newToken != null) {
+              _authHeaders['Authorization'] = 'Bearer $newToken';
+            }
           },
         ),
       );
@@ -117,11 +122,6 @@ class WebSocketService {
     _updateConnectionState(WSConnectionState.disconnected);
   }
 
-  void _onReconnect() {
-    print('Attempting to reconnect...');
-    _updateConnectionState(WSConnectionState.reconnecting);
-  }
-
   void _handleConnectionError(dynamic error) {
     _reconnectAttempts++;
     if (_reconnectAttempts >= config.maxReconnectAttempts) {
@@ -139,12 +139,12 @@ class WebSocketService {
 
   /// Subscribe to a topic with a custom handler
   void subscribe<T>(WSEventHandler<T> handler) {
-    if (_client == null || !_client!.active) {
+    if (_client == null || !_client!.connected) {
       print('Cannot subscribe: not connected');
       return;
     }
 
-    final subscription = _client!.subscribe(
+    _client!.subscribe(
       destination: handler.topic,
       callback: (frame) {
         _handleMessage(frame.body, handler);
@@ -168,7 +168,7 @@ class WebSocketService {
 
     try {
       final json = jsonDecode(body) as Map<String, dynamic>;
-      final event = WebSocketEvent.fromJson(json, null);
+      final event = WebSocketEvent<T>.fromJson(json, null);
       
       // Emit to global event stream
       _eventController.add(event);
@@ -207,5 +207,5 @@ class WebSocketService {
   bool get isConnected => 
       _connectionState == WSConnectionState.connected && 
       _client != null && 
-      _client!.active;
+      _client!.connected;
 }

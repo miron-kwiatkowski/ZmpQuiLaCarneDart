@@ -10,12 +10,10 @@ class GetTablesUseCase {
   GetTablesUseCase(this.repository);
 
   Future<Either<Failure, List<TableEntity>>> call({
-    DateTime? startTime,
-    DateTime? endTime,
+    String? filter,
   }) async {
     return await repository.getTables(
-      startTime: startTime,
-      endTime: endTime,
+      filter: filter,
     );
   }
 }

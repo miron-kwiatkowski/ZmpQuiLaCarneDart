@@ -17,6 +17,9 @@ ReservationDto _$ReservationDtoFromJson(Map<String, dynamic> json) =>
       notes: json['notes'] as String?,
       totalPrice: (json['totalPrice'] as num?)?.toDouble(),
       waiterToken: json['waiterToken'] as String?,
+      items: (json['items'] as List<dynamic>?)
+          ?.map((e) => OrderItemDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
       createdAt: json['createdAt'] == null
           ? null
           : DateTime.parse(json['createdAt'] as String),
@@ -36,6 +39,7 @@ Map<String, dynamic> _$ReservationDtoToJson(ReservationDto instance) =>
       'notes': instance.notes,
       'totalPrice': instance.totalPrice,
       'waiterToken': instance.waiterToken,
+      'items': instance.items,
       'createdAt': instance.createdAt?.toIso8601String(),
       'updatedAt': instance.updatedAt?.toIso8601String(),
     };

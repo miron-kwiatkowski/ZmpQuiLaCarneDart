@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import '../../domain/entities/auth_entity.dart';
-import '../../domain/usecases/auth_usecases.dart';
+import 'package:quilacarne_waiter/features/auth_module/domain/entities/auth_entity.dart';
+import 'package:quilacarne_waiter/features/auth_module/domain/usecases/auth_usecases.dart';
 
 /// Stany dla AuthCubit
 abstract class AuthState extends Equatable {
