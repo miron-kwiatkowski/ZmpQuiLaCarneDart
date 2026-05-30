@@ -167,12 +167,12 @@ class GetReservationDetailsUseCase {
 
 /// Use Case: Synchronizacja wszystkich danych
 class SyncAllDataUseCase {
-  final dynamic syncRepository;
+  final WaiterRepository repository;
 
-  SyncAllDataUseCase(this.syncRepository);
+  SyncAllDataUseCase(this.repository);
 
   /// Synchronizuje wszystkie dane z serwerem
   Future<Either<Failure, bool>> call() async {
-    return await syncRepository.syncAll();
+    return await repository.syncAllData();
   }
 }

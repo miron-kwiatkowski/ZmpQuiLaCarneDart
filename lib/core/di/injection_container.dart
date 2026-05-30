@@ -164,6 +164,7 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => CreateGuestReportUseCase(sl()));
   sl.registerLazySingleton(() => GetDishesUseCase(sl()));
   sl.registerLazySingleton(() => GetReservationDetailsUseCase(sl()));
+  sl.registerLazySingleton(() => SyncAllDataUseCase(sl()));
 
   // ==================== WAITER MODULE - CUBITS ====================
 
@@ -196,6 +197,15 @@ Future<void> initDependencies() async {
 /// Inicjalizacja bazy danych (wywołuje initDependencies)
 Future<void> initDatabase() async {
   await initDependencies();
+
+  // Bootstrap — fetch all data from API and populate local cache
+  // Silently skips if offline (data will be fetched on next online access)
+  try {
+    final syncUseCase = sl<SyncAllDataUseCase>();
+    await syncUseCase.call();
+  } catch (_) {
+    // Bootstrap is best-effort; individual features will retry on access
+  }
 }
 
 /// Czyszczenie wszystkich zależności (np. przy wylogowaniu)

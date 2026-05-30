@@ -419,7 +419,7 @@ class QueueOperationFactory {
     );
   }
   
-  /// Tworzy operację zmiany statusu stolika
+  /// Tworzy operację zmiany statusu stolika na CLEANING
   static QueuedOperation createMarkTableCleaning({required String tableToken}) {
     return QueuedOperation(
       id: _uuid.v4(),
@@ -427,6 +427,50 @@ class QueueOperationFactory {
       payload: {'tableToken': tableToken},
       createdAt: DateTime.now(),
       tableToken: tableToken,
+    );
+  }
+
+  /// Tworzy operację zmiany statusu stolika na OUT_OF_SERVICE
+  static QueuedOperation createMarkTableOutOfService({required String tableToken}) {
+    return QueuedOperation(
+      id: _uuid.v4(),
+      type: QueuedOperationType.markTableOutOfService,
+      payload: {'tableToken': tableToken},
+      createdAt: DateTime.now(),
+      tableToken: tableToken,
+    );
+  }
+
+  /// Tworzy operację zmiany statusu stolika na AVAILABLE
+  static QueuedOperation createMarkTableAvailable({required String tableToken}) {
+    return QueuedOperation(
+      id: _uuid.v4(),
+      type: QueuedOperationType.markTableAvailable,
+      payload: {'tableToken': tableToken},
+      createdAt: DateTime.now(),
+      tableToken: tableToken,
+    );
+  }
+
+  /// Tworzy operację przypisania kelnera do rezerwacji
+  static QueuedOperation createAssignWaiterToReservation({required String reservationToken}) {
+    return QueuedOperation(
+      id: _uuid.v4(),
+      type: QueuedOperationType.assignWaiterToReservation,
+      payload: {'reservationToken': reservationToken},
+      createdAt: DateTime.now(),
+      reservationToken: reservationToken,
+    );
+  }
+
+  /// Tworzy operację oznaczenia rezerwacji jako no-show
+  static QueuedOperation createMarkReservationAbsent({required String reservationToken}) {
+    return QueuedOperation(
+      id: _uuid.v4(),
+      type: QueuedOperationType.markReservationAbsent,
+      payload: {'reservationToken': reservationToken},
+      createdAt: DateTime.now(),
+      reservationToken: reservationToken,
     );
   }
   

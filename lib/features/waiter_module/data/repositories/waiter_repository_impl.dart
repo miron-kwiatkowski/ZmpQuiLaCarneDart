@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/network/offline_queue_manager.dart';
+import '../models/queued_operation_model.dart';
 import '../../domain/entities/table_entity.dart';
 import '../../domain/entities/dish_entity.dart';
 import '../../domain/entities/order_entity.dart';
@@ -12,6 +13,7 @@ import '../datasources/waiter_local_datasource.dart';
 import '../models/dto/table_dto.dart';
 import '../models/dto/dish_dto.dart';
 import '../models/dto/reservation_dto.dart';
+import '../models/dto/report_dto.dart';
 
 /// Implementacja repozytorium kelnera (Data Layer)
 class WaiterRepositoryImpl implements WaiterRepository {
@@ -65,7 +67,16 @@ class WaiterRepositoryImpl implements WaiterRepository {
         }
         return const Right(true);
       } else {
-        final operation = QueueOperationFactory.createMarkTableCleaning(tableToken: tableToken);
+        final QueuedOperation operation;
+        if (newStatus == 'CLEANING') {
+          operation = QueueOperationFactory.createMarkTableCleaning(tableToken: tableToken);
+        } else if (newStatus == 'OUT_OF_SERVICE') {
+          operation = QueueOperationFactory.createMarkTableOutOfService(tableToken: tableToken);
+        } else if (newStatus == 'AVAILABLE') {
+          operation = QueueOperationFactory.createMarkTableAvailable(tableToken: tableToken);
+        } else {
+          return Left(ValidationFailure(message: 'Nieznany status stolika: $newStatus'));
+        }
         await _queueManager.enqueue(operation);
         return const Right(true);
       }
@@ -146,8 +157,11 @@ class WaiterRepositoryImpl implements WaiterRepository {
         await _remoteDataSource.assignWaiterToReservation(reservationToken);
         return const Right(true);
       } else {
-        // TODO: Add to queue
-        return const Left(ConnectionFailure(message: 'Offline operation not implemented'));
+        final operation = QueueOperationFactory.createAssignWaiterToReservation(
+          reservationToken: reservationToken,
+        );
+        await _queueManager.enqueue(operation);
+        return const Right(true);
       }
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
@@ -167,8 +181,11 @@ class WaiterRepositoryImpl implements WaiterRepository {
         await _remoteDataSource.markReservationAbsent(reservationToken);
         return const Right(true);
       } else {
-        // TODO: Add proper offline operation for markReservationAbsent
-        return const Left(ConnectionFailure(message: 'Offline operation not implemented for markReservationAbsent'));
+        final operation = QueueOperationFactory.createMarkReservationAbsent(
+          reservationToken: reservationToken,
+        );
+        await _queueManager.enqueue(operation);
+        return const Right(true);
       }
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
@@ -178,10 +195,20 @@ class WaiterRepositoryImpl implements WaiterRepository {
   @override
   Future<Either<Failure, List<GuestReportEntity>>> getGuestReports() async {
     try {
-      final entities = await _localDataSource.getGuestReports();
-      return Right(entities);
+      final isOnline = await _networkInfo.isConnected;
+      if (isOnline) {
+        final reportDtos = await _remoteDataSource.getGuestReports();
+        final entities = reportDtos.map((dto) => dto.toEntity()).toList();
+        for (final entity in entities) {
+          await _localDataSource.cacheGuestReport(entity);
+        }
+        return Right(entities);
+      } else {
+        final cachedReports = await _localDataSource.getGuestReports();
+        return Right(cachedReports);
+      }
     } catch (e) {
-      return Left(CacheFailure(message: e.toString()));
+      return Left(ServerFailure(message: e.toString()));
     }
   }
 
@@ -251,6 +278,41 @@ class WaiterRepositoryImpl implements WaiterRepository {
       return Left(ServerFailure(message: e.toString()));
     }
   }
+
+  @override
+  Future<Either<Failure, bool>> syncAllData() async {
+    try {
+      final isOnline = await _networkInfo.isConnected;
+      if (!isOnline) {
+        return const Right(true); // Nothing to sync when offline — will sync later
+      }
+
+      // Fetch and cache tables
+      final tableDtos = await _remoteDataSource.getTables();
+      final tableEntities = tableDtos.map((dto) => dto.toEntity()).toList();
+      await _localDataSource.cacheTables(tableEntities);
+
+      // Fetch and cache dishes
+      final dishDtos = await _remoteDataSource.getDishes();
+      final dishEntities = dishDtos.map((dto) => dto.toEntity()).toList();
+      await _localDataSource.cacheDishes(dishEntities);
+
+      // Fetch and cache reports
+      try {
+        final reportDtos = await _remoteDataSource.getGuestReports();
+        final reportEntities = reportDtos.map((dto) => dto.toEntity()).toList();
+        for (final entity in reportEntities) {
+          await _localDataSource.cacheGuestReport(entity);
+        }
+      } catch (_) {
+        // Reports may not be critical for initial bootstrap
+      }
+
+      return const Right(true);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Sync failed: $e'));
+    }
+  }
 }
 
 // Extension methods to handle conversion from DTOs to Entities
@@ -304,5 +366,17 @@ extension OrderItemDtoX on OrderItemDto {
         note: note,
         unitPriceInCents: (unitPrice * 100).toInt(),
         statusToken: statusToken,
+      );
+}
+
+extension ReportDtoX on ReportDto {
+  GuestReportEntity toEntity() => GuestReportEntity(
+        token: token,
+        clientToken: clientToken,
+        reason: reason,
+        statusToken: statusToken,
+        reporterToken: reporterToken,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
       );
 }

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../models/dto/table_dto.dart';
 import '../models/dto/dish_dto.dart';
 import '../models/dto/reservation_dto.dart';
+import '../models/dto/report_dto.dart';
 
 /// Zdalne źródło danych dla modułu kelnera (Data Layer)
 /// 
@@ -51,6 +52,9 @@ abstract class WaiterRemoteDataSource {
   
   /// Pobiera szczegóły rezerwacji
   Future<ReservationDto> getReservationByToken(String token);
+
+  /// Pobiera listę zgłoszeń gości
+  Future<List<ReportDto>> getGuestReports();
 }
 
 /// Implementacja zdalnego źródła danych
@@ -200,13 +204,26 @@ class WaiterRemoteDataSourceImpl implements WaiterRemoteDataSource {
   @override
   Future<ReservationDto> getReservationByToken(String token) async {
     final response = await _dio.get('/api/reservations/$token');
-    
+
     if (response.statusCode == 200 && response.data['success'] == true) {
       final data = response.data['data'] as Map<String, dynamic>;
       return ReservationDto.fromJson(data);
     }
-    
+
     throw ServerException('Failed to fetch reservation details');
+  }
+
+  @override
+  Future<List<ReportDto>> getGuestReports() async {
+    final response = await _dio.get('/api/reports');
+
+    if (response.statusCode == 200 && response.data['success'] == true) {
+      final data = response.data['data'] as Map<String, dynamic>;
+      final items = data['items'] as List<dynamic>;
+      return items.map((item) => ReportDto.fromJson(item)).toList();
+    }
+
+    throw ServerException('Failed to fetch guest reports');
   }
 }
 

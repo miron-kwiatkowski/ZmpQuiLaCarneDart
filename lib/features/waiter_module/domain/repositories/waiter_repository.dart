@@ -59,6 +59,9 @@ abstract class WaiterRepository {
 
   /// Oznacza rezerwację jako nieobecność (no-show)
   Future<Either<Failure, bool>> markReservationAbsent(String reservationToken);
+
+  /// Synchronizuje wszystkie dane z API (bootstrap przy pierwszym uruchomieniu)
+  Future<Either<Failure, bool>> syncAllData();
 }
 
 /// Pomocnicza klasa dla pozycji dodawanych do zamówienia
